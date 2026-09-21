@@ -84,6 +84,10 @@
   /* ---- stage ------------------------------------------------------------- */
   .stage {
     position: relative; width: 100%; aspect-ratio: 4 / 3;
+    /* กล้องมือถือเป็นแนวตั้ง เวทีจึงสูงกว่าจอ ดันปุ่มตกขอบล่าง
+       จำกัดความสูงไว้ ภาพส่วนเกินถูก crop บน-ล่างด้วย object-fit:cover
+       (canvas ใช้ขนาดและ object-fit เดียวกับ video จุดจมูกจึงยังตรงตำแหน่ง) */
+    max-height: 68vh; max-height: 68svh;
     background: #04060A;
     border: 1px solid var(--border);
     border-radius: var(--r-lg);
@@ -146,9 +150,11 @@
   .stage.focus .top-bar { opacity: 0; }
   .distance-badge, .top-bar { transition: opacity 0.25s var(--ease); }
 
+  /* preserveAspectRatio="meet" -> ย่อ/ขยายเท่ากันทุกทิศ วงรีคงรูปหน้าคน
+     (เดิมใช้ "none" พอเวทีเป็นแนวตั้งบนมือถือ วงรีถูกยืดเป็นเส้นยาวผอม) */
   .distance-guide-svg {
     position: absolute; top: 50%; left: 50%;
-    width: 48%; height: 64%;
+    width: 70%; height: 64%;
     transform: translate(-50%, -50%);
     z-index: 4; pointer-events: none; overflow: visible;
   }
@@ -403,10 +409,21 @@
   .help-body p:last-child { margin-bottom: 0; }
 
   @media (max-width: 620px) {
-    header { padding: 26px 18px 4px; }
-    header h1 { font-size: 17px; }
+    header { padding: 16px 16px 2px; }
+    header h1 { font-size: 17px; margin-bottom: 4px; }
+    /* ตัดชื่อเทคนิคออก เหลือแค่ข้อความเรื่องความเป็นส่วนตัว -> บรรทัดเดียว */
+    header p .tech { display: none; }
+    header p { font-size: 11px; }
     .wrap { padding: 14px 14px 36px; gap: 12px; }
-    .stage { border-radius: var(--r-md); }
+    /* ความสูงเวที = จอ - (หัวเว็บ + คำสั่ง 2 บรรทัด + ปุ่ม + ช่องไฟ ≈ 250px)
+       ปุ่ม "ตั้ง Baseline" จึงอยู่ในจอเสมอโดยไม่ต้องเลื่อน
+       ใช้ svh = ความสูงจอตอนแถบเครื่องมือ Safari / in-app browser แสดงอยู่
+       max(260px, …) กันไม่ให้หดจนใช้ไม่ได้บนจอที่เตี้ยมาก */
+    .stage {
+      border-radius: var(--r-md);
+      max-height: max(260px, calc(100vh - 250px));
+      max-height: max(260px, calc(100svh - 250px));
+    }
     button { flex: 1 1 42%; padding: 14px 16px; font-size: 14px; }
     .top-bar { right: 74px; top: 11px; left: 11px; gap: 6px; }
     .angle-badge { font-size: 15.5px; padding: 7px 13px; }
@@ -429,7 +446,7 @@
 
 <header>
   <h1>Neck Flexion Demo <span class="ver">v2</span></h1>
-  <p>MediaPipe Face + Pose Landmarker — ประมวลผลบนเครื่อง ไม่มีการส่งภาพออกนอกเบราว์เซอร์</p>
+  <p><span class="tech">MediaPipe Face + Pose Landmarker — </span>ประมวลผลบนเครื่อง ไม่มีการส่งภาพออกนอกเบราว์เซอร์</p>
 </header>
 
 <div class="wrap">
@@ -438,7 +455,7 @@
     <video id="video" autoplay playsinline muted></video>
     <canvas id="overlay"></canvas>
 
-    <svg class="distance-guide-svg" id="distanceGuideSvg" viewBox="0 0 100 100" preserveAspectRatio="none">
+    <svg class="distance-guide-svg" id="distanceGuideSvg" viewBox="0 0 100 100" preserveAspectRatio="xMidYMid meet">
       <ellipse id="distanceGuideEllipse" cx="50" cy="50" rx="34" ry="47"
         fill="none" stroke="#64748B" stroke-width="2.5" stroke-dasharray="5 6" stroke-linecap="round" />
     </svg>
@@ -475,7 +492,7 @@
     </div>
   </div>
 
-  <div class="step-hint" id="stepHint">กด <b>“เปิดกล้อง”</b> เพื่อเริ่ม</div>
+  <div class="step-hint" id="stepHint"><span>กด <b>“เปิดกล้อง”</b> เพื่อเริ่ม</span></div>
 
   <!-- เหลือปุ่มที่มองเห็นพร้อมกันสูงสุด 2 ปุ่ม:
        ปุ่มหลัก 1 ปุ่มที่เปลี่ยนหน้าที่ตาม state + ปุ่มดาวน์โหลด -->
@@ -836,7 +853,10 @@
      ===================================================================== */
   function setHint(html, kind = "") {
     stepHint.className = "step-hint" + (kind ? " " + kind : "");
-    stepHint.innerHTML = html;
+    // ห่อข้อความด้วย span เดียว: .step-hint เป็น flex (จุดสถานะ + ข้อความ)
+    // ถ้าไม่ห่อ ข้อความแต่ละท่อนกับ <b> จะกลายเป็น flex item แยกกัน
+    // บนจอแคบเลยแตกเป็นหลายคอลัมน์
+    stepHint.innerHTML = `<span>${html}</span>`;
   }
 
   function showCountdown(num, sub, progress, opts = {}) {

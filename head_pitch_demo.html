@@ -600,6 +600,8 @@
     // ---- ยืนยันมุมสูงสุดด้วยการค้าง ----
     HOLD_MS: 1200,          // ต้องค้างที่ checkpoint นานเท่านี้ถึงจะผ่านจุดนั้น
     CP_STEP: 5,             // ระยะห่างระหว่าง checkpoint (องศา)
+    CP_ENTER_TOL: 0.75,     // ต้องเข้าใกล้เป้าเท่านี้วงแหวนถึงเริ่มนับ (องศา)
+    CP_HOLD_TOL: 1.5,       // ระหว่างค้าง ยอมให้สั่นได้เท่านี้โดยไม่รีเซ็ต (องศา)
 
     // ---- ตัวกรองสัญญาณ (One Euro) ----
     FILTER_MIN_CUTOFF: 0.6, // ต่ำ = นิ่งขึ้นแต่หน่วงขึ้น (0.6 ให้ error ต่ำสุดจาก simulation)
@@ -622,35 +624,35 @@
   /* ---------------------------------------------------------------------
      CHECKPOINT ทุก CP_STEP องศา — ต้องค้างทีละจุด ไล่ตามลำดับ
      ---------------------------------------------------------------------
-     แถบยอมรับของจุด A คือ [A, A+CP_STEP) — คือ "ตั้งแต่ A ขึ้นไป แต่ยังไม่ถึงจุดถัดไป"
-     จุดสุดท้ายเปิดปลายบน [A, อินฟินิตี้)
+     แถบของจุด A เป็นแบบ ± รอบเป้า สองระดับ (hysteresis):
+       เริ่มนับ : |มุม - A| <= CP_ENTER_TOL (0.75°)
+       ระหว่างค้าง: |มุม - A| <= CP_HOLD_TOL  (1.5°) ถ้าหลุดจากนี้ถึงรีเซ็ต
 
-     ทำไมไม่ใช่ A ± ครึ่งช่วง (ซึ่งเคยใช้แล้วผิด):
-       แถบสมมาตรทำให้จุดที่ชื่อ "10°" รับตั้งแต่ 7.5° — ผ่านได้โดยไม่เคยแตะ 10°
-       วัดกับคนจริงแล้วพบว่า 4 ใน 5 จุดผ่านทั้งที่ยังไม่ถึงเป้า
-       (10°->8.70, 15°->13.06, 20°->18.05, 25°->24.71) ระบบจึงรายงานว่าครบ
-       ทั้งที่ผู้ทดสอบไม่เคยค้างถึง 25° เลย
-     ขอบล่างที่เท่ากับเป้าพอดีรับประกันว่า "ผ่านจุด A = ค้างที่ A° ขึ้นไปจริง"
-     และยังบังคับให้หยุดทีละจุดเหมือนเดิม เพราะขอบบนกันไม่ให้ก้มรวดเดียวข้ามไป
+     ที่มา (จากข้อมูลวัดคนจริง):
+       1) ±2.5° แบบระดับเดียว: คนหยุดทันทีที่วงแหวนเริ่มหมุน = ที่ขอบล่างของแถบ
+          ผลคือค้างต่ำกว่าเป้า ~2° เกือบทุกจุด (10°->8.70, 15°->13.06, 20°->18.05)
+       2) [A, A+5): รับประกันว่าถึงเป้า แต่ขอบล่าง = เป้าพอดี ขณะที่หัวสั่นตอนค้าง
+          ราว 1-1.6° (SD ~0.4°) จึงหลุดต่ำกว่าเป้าบ่อยจนรีเซ็ตซ้ำๆ ต้องก้มเลยไป
+          ถึงจะผ่าน ซึ่งไม่ใช่การค้างที่เป้าแล้ว
+     สองระดับแก้ทั้งสองอย่าง: วงแหวนเริ่มตอนอยู่ใกล้เป้าจริง (คนจึงหยุดตรงเป้า)
+     แล้วเผื่อการสั่นระหว่างค้างให้ -> คลาดเคลื่อนไม่เกิน ±CP_HOLD_TOL
      --------------------------------------------------------------------- */
   const CHECKPOINTS = [];
   for (let a = CFG.CP_STEP; a <= ANGLE_MAX; a += CFG.CP_STEP) CHECKPOINTS.push(a);
-  // สเกลของแถบวัดต้องเลยจุดสุดท้ายไป 1 ช่วง ไม่งั้นแถบของจุดสุดท้ายจะสูงเป็น 0
+  // สเกลของแถบวัดเลยจุดสุดท้ายไป 1 ช่วง ให้เห็นแถบรอบจุดสุดท้ายครบ
   const GAUGE_MAX = ANGLE_MAX + CFG.CP_STEP;
 
-  function cpBandOf(idx) {
+  function cpBandOf(idx, tol = CFG.CP_HOLD_TOL) {
     const deg = CHECKPOINTS[idx];
-    const isLast = idx === CHECKPOINTS.length - 1;
-    return { deg, lo: deg, hi: isLast ? Infinity : deg + CFG.CP_STEP };
+    return { deg, lo: deg - tol, hi: deg + tol };
   }
-  function inCpBand(x, idx) {
-    const b = cpBandOf(idx);
-    return x >= b.lo && x < b.hi;
+  function inCpBand(x, idx, tol = CFG.CP_HOLD_TOL) {
+    const b = cpBandOf(idx, tol);
+    return x >= b.lo && x <= b.hi;
   }
-  // ข้อความบอกช่วงที่ต้องค้าง
+  // ข้อความบอกเป้าที่ต้องค้าง
   function cpRangeText(idx) {
-    const b = cpBandOf(idx);
-    return b.hi === Infinity ? `${b.deg}° ขึ้นไป` : `${b.deg}–${b.hi}°`;
+    return `${CHECKPOINTS[idx]}° ±${CFG.CP_HOLD_TOL}`;
   }
 
   const NOSE_IDX = 1;
@@ -1074,6 +1076,8 @@
       `# sign_factor,${signFactor}`,
       `# confirmed_max_deg,${confirmedMax.toFixed(2)}`,
       `# cp_step_deg,${CFG.CP_STEP}`,
+      `# cp_enter_tol_deg,${CFG.CP_ENTER_TOL}`,
+      `# cp_hold_tol_deg,${CFG.CP_HOLD_TOL}`,
       `# cp_list_deg,${CHECKPOINTS.join(" ")}`,
       `# cp_captured,${cpResults.length}/${CHECKPOINTS.length}`,
       // ผลแต่ละจุด: มุมจริงที่ค้างได้ และวินาทีที่ผ่านจุดนั้น
@@ -1519,7 +1523,8 @@
       counted = true;
       sweepLabel.classList.remove("paused");
 
-      if (inCpBand(flexion, cpIndex)) {
+      const tol = dwellStart === null ? CFG.CP_ENTER_TOL : CFG.CP_HOLD_TOL;
+      if (inCpBand(flexion, cpIndex, tol)) {
         // อยู่ในแถบของ checkpoint -> จับเวลาค้าง
         if (dwellStart === null) dwellStart = ts;
         pushHold(ts, flexion);
@@ -1532,7 +1537,7 @@
           p,
           { hold: true, smallNum: true }
         );
-        setMeasureHint("hold:" + target, `ค้างไว้ในช่วง <b>${cpRangeText(cpIndex)}</b> จนวงแหวนเต็ม`);
+        setMeasureHint("hold:" + target, `ค้างไว้ที่ <b>${cpRangeText(cpIndex)}</b> จนวงแหวนเต็ม`);
 
         if (p >= 1) {
           // ยืนยันด้วย percentile เหมือนเดิม กัน noise ดันให้ผ่านทั้งที่ไม่ได้ค้างจริง
@@ -1556,12 +1561,12 @@
         // ยังไม่ถึงแถบ -> ซ่อน countdown เพื่อให้เห็นป้ายมุมปัจจุบัน
         clearHold();
         hideCountdown();
-        const needDown = flexion < cpBandOf(cpIndex).lo;
+        const needDown = flexion < CHECKPOINTS[cpIndex];
         setMeasureHint(
           "goto:" + target + (needDown ? "d" : "u"),
           needDown
             ? `ก้มลงอีกให้ถึง <b>${target}°</b> แล้วค้างไว้`
-            : `ก้มลึกเกินช่วง <b>${cpRangeText(cpIndex)}</b> — เงยขึ้นมานิดนึงแล้วค้างไว้`
+            : `ก้มลึกเกิน <b>${cpRangeText(cpIndex)}</b> — เงยขึ้นมานิดนึงแล้วค้างไว้`
         );
       }
 

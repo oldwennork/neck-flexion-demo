@@ -1,0 +1,1671 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Neck Flexion Demo v2 — MediaPipe (Browser)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<!-- IBM Plex Sans Thai = ตัวอักษรสาย technical ที่มีภาษาไทยครบ
+     JetBrains Mono = ใช้เฉพาะ "ตัวเลข" ให้ความกว้างคงที่ (tabular)
+     ตัวเลขมุม/เวลาจึงไม่กระตุกซ้าย-ขวาเวลาค่าเปลี่ยน -->
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@300;400;500;600;700&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    /* ---- palette: deep slate + electric cyan ---- */
+    --bg: #06080D;
+    --surface: rgba(255,255,255,0.045);
+    --surface-hi: rgba(255,255,255,0.075);
+    --border: rgba(255,255,255,0.085);
+    --border-soft: rgba(255,255,255,0.05);
+
+    --accent: #22D3EE;
+    --accent-2: #6366F1;
+    --accent-soft: rgba(34,211,238,0.14);
+    --warn: #FB7185;
+    --warn-soft: rgba(251,113,133,0.14);
+    --amber: #FBBF24;
+    --neutral: #64748B;
+
+    --text: #EAEFF7;
+    --muted: #8994A8;
+    --muted-2: #5D6879;
+
+    /* ---- ไม่มีมุมคม: ทุกอย่างใช้ radius จากชุดนี้เท่านั้น ---- */
+    --r-lg: 28px;
+    --r-md: 20px;
+    --r-sm: 14px;
+    --pill: 999px;
+
+    --ease: cubic-bezier(0.22, 0.61, 0.36, 1);
+    --glass-blur: blur(18px) saturate(165%);
+    --shadow: 0 18px 50px -18px rgba(0,0,0,0.85);
+
+    --font: "IBM Plex Sans Thai", "Noto Sans Thai", -apple-system, system-ui, sans-serif;
+    --mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+  }
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    font-family: var(--font);
+    font-weight: 400;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    overflow-x: hidden;
+    -webkit-font-smoothing: antialiased;
+  }
+  /* แสงเรืองพื้นหลัง — ให้ความรู้สึก depth โดยไม่เพิ่ม element ที่ต้องดูแล */
+  body::before {
+    content: ""; position: fixed; inset: 0; z-index: -1; pointer-events: none;
+    background:
+      radial-gradient(60% 45% at 12% -8%, rgba(14,116,144,0.30), transparent 62%),
+      radial-gradient(55% 42% at 96% 2%, rgba(67,56,202,0.26), transparent 62%),
+      radial-gradient(75% 50% at 50% 112%, rgba(34,211,238,0.09), transparent 62%);
+  }
+
+  header { padding: 36px 20px 4px; text-align: center; }
+  header h1 {
+    margin: 0 0 7px; font-size: 19px; font-weight: 600; letter-spacing: -0.02em;
+  }
+  header h1 .ver {
+    font-family: var(--mono); font-size: 13px; font-weight: 500;
+    color: var(--accent); vertical-align: 2px; margin-left: 3px;
+  }
+  header p { margin: 0; color: var(--muted-2); font-size: 12px; font-weight: 300; }
+
+  .wrap {
+    max-width: 880px; margin: 0 auto;
+    padding: 18px 18px 48px;
+    display: flex; flex-direction: column; gap: 14px;
+  }
+
+  /* ---- stage ------------------------------------------------------------- */
+  .stage {
+    position: relative; width: 100%; aspect-ratio: 4 / 3;
+    background: #04060A;
+    border: 1px solid var(--border);
+    border-radius: var(--r-lg);
+    overflow: hidden;
+    box-shadow: var(--shadow);
+  }
+  video, canvas {
+    position: absolute; top: 0; left: 0;
+    width: 100%; height: 100%;
+    object-fit: cover;
+    transform: scaleX(-1); /* mirror เฉพาะภาพ ไม่กระทบ overlay ที่เป็น div */
+  }
+
+  /* กล่องลอยบนวิดีโอใช้ glass เหมือนกันหมด -> ดูเป็นระบบเดียว */
+  .angle-badge, .timer-badge, .distance-badge, .sweep-wrap, .cd-sub {
+    background: rgba(10,14,22,0.62);
+    -webkit-backdrop-filter: var(--glass-blur);
+    backdrop-filter: var(--glass-blur);
+    border: 1px solid rgba(255,255,255,0.09);
+  }
+
+  .top-bar {
+    position: absolute; top: 13px; left: 13px; z-index: 5;
+    /* เว้นที่ด้านขวาให้แถบกวาดมุมเสมอ ป้ายจึงไม่มีวันมุดไปอยู่ใต้มัน */
+    right: 84px;
+    display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+    pointer-events: none;
+  }
+  .angle-badge {
+    padding: 9px 17px; border-radius: var(--pill);
+    font-family: var(--mono); font-size: 20px; font-weight: 700;
+    font-variant-numeric: tabular-nums; letter-spacing: -0.025em;
+    transition: color 0.3s var(--ease), box-shadow 0.3s var(--ease);
+  }
+  .angle-badge.ok   { color: var(--accent); box-shadow: 0 0 24px -8px rgba(34,211,238,0.65); }
+  .angle-badge.warn { color: var(--warn);   box-shadow: 0 0 24px -8px rgba(251,113,133,0.65); }
+
+  .timer-badge {
+    padding: 7px 13px; border-radius: var(--pill);
+    font-family: var(--mono); font-size: 11.5px; font-weight: 500;
+    font-variant-numeric: tabular-nums; color: var(--muted);
+    transition: color 0.3s var(--ease);
+  }
+  .timer-badge.hot { color: var(--amber); }
+  .timer-badge[hidden] { display: none; }
+
+  .distance-badge {
+    position: absolute; bottom: 14px; left: 50%; transform: translateX(-50%); z-index: 5;
+    padding: 9px 20px; border-radius: var(--pill);
+    font-size: 12.5px; font-weight: 500; white-space: nowrap;
+    transition: color 0.3s var(--ease);
+  }
+  .distance-badge.neutral { color: var(--muted); }
+  .distance-badge.bad     { color: var(--warn); }
+  .distance-badge.good    { color: var(--accent); }
+  /* ตอน countdown ขึ้น = โหมดโฟกัส: ซ่อนป้ายที่ข้อมูลซ้ำกับข้อความใต้วงแหวน
+     ("ค้างไว้ที่ 19°" มีมุมอยู่แล้ว / ตอนถูกบล็อกก็ใช้ข้อความเดียวกับป้ายระยะ)
+     ได้ผลพลอยได้คือบนเวทีเตี้ย (กล้อง 16:9 จอแคบ) วงแหวนไม่มีอะไรให้ชนอีก */
+  .stage.focus .distance-badge,
+  .stage.focus .top-bar { opacity: 0; }
+  .distance-badge, .top-bar { transition: opacity 0.25s var(--ease); }
+
+  .distance-guide-svg {
+    position: absolute; top: 50%; left: 50%;
+    width: 48%; height: 64%;
+    transform: translate(-50%, -50%);
+    z-index: 4; pointer-events: none; overflow: visible;
+  }
+  #distanceGuideEllipse {
+    stroke-width: 2; opacity: 0.5;
+    transition: stroke 0.3s var(--ease), opacity 0.3s var(--ease);
+  }
+
+  /* ---- countdown overlay ------------------------------------------------- */
+  .countdown {
+    position: absolute; inset: 0; z-index: 8; pointer-events: none;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: 3%;
+    /* สำรองขอบบน-ล่างไว้ให้ป้ายที่ลอยอยู่ วงแหวนจึงไม่ไปทับ
+       (สมมาตรเพื่อให้ยังอยู่กึ่งกลางเวทีจริงๆ) */
+    padding: 54px 10px;
+    background: rgba(4,6,10,0.45);
+    -webkit-backdrop-filter: blur(4px); backdrop-filter: blur(4px);
+    animation: fadeIn 0.3s var(--ease);
+  }
+  .countdown[hidden] { display: none; }
+  /* โหมด hold ไม่บังภาพ เพราะผู้ใช้ต้องเห็นตัวเองตอนค้างมุม */
+  .countdown.hold { background: transparent; -webkit-backdrop-filter: none; backdrop-filter: none; }
+
+  /* ขนาดอิง "ความสูงของเวที" ไม่ใช่ px ตายตัว
+     เวทีเตี้ย (กล้อง 16:9 บนจอแคบ) วงแหวนจึงหดเองและไม่ไปชนป้ายล่าง
+     ป้ายคำสั่งเป็น flow item ใต้ .cd-dial จึงอยู่ใต้วงแหวนเสมอโดยไม่ต้องคำนวณระยะ */
+  .cd-dial {
+    position: relative; flex: none;
+    /* min-height กันไม่ให้หดจนอ่านไม่ออกบนเวทีเตี้ยมากๆ */
+    height: min(52%, 208px); min-height: 84px; aspect-ratio: 1;
+    container-type: size;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .cd-ring {
+    position: absolute; inset: 0; width: 100%; height: 100%;
+    filter: drop-shadow(0 0 16px rgba(34,211,238,0.45));
+  }
+  .cd-ring circle { fill: none; stroke-width: 5; stroke-linecap: round; }
+  .cd-ring-bg { stroke: rgba(255,255,255,0.13); }
+  .cd-ring-fg {
+    stroke: var(--accent);
+    transform: rotate(-90deg); transform-origin: 60px 60px;
+    transition: stroke-dashoffset 0.1s linear;
+  }
+  .countdown.warn .cd-ring { filter: drop-shadow(0 0 16px rgba(251,113,133,0.45)); }
+  .countdown.warn .cd-ring-fg { stroke: var(--warn); }
+  .cd-num {
+    position: relative;
+    font-family: var(--mono); font-weight: 700; line-height: 1;
+    letter-spacing: -0.05em; font-variant-numeric: tabular-nums;
+    text-shadow: 0 4px 32px rgba(0,0,0,0.75);
+    font-size: 62px;                        /* fallback ถ้าเบราว์เซอร์ไม่รู้จัก cqh */
+    font-size: clamp(20px, 38cqh, 68px);    /* ย่อตามวงแหวน แต่ไม่เล็กกว่า 20px */
+  }
+  .cd-num.small { font-size: 27px; font-size: clamp(15px, 20cqh, 30px); letter-spacing: -0.02em; }
+  .countdown.warn .cd-num { color: var(--warn); }
+  .cd-sub {
+    flex: none; max-width: 78%;
+    padding: 9px 19px; border-radius: var(--pill);
+    font-size: 12.5px; font-weight: 500; text-align: center;
+    background: rgba(6,9,15,0.85);
+  }
+  .countdown.warn .cd-sub { color: var(--warn); }
+  @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+  /* ---- sweep gauge ------------------------------------------------------- */
+  .sweep-wrap {
+    position: absolute; top: 10%; right: 12px; z-index: 6;
+    width: 74px; height: 80%;
+    display: none; flex-direction: column; align-items: center;
+    border-radius: var(--r-md); padding: 13px 6px;
+  }
+  .sweep-track {
+    position: relative; width: 13px; flex: 1;
+    background: rgba(255,255,255,0.1);
+    border-radius: var(--pill);
+  }
+  .sweep-fill {
+    position: absolute; top: 0; left: 0; width: 100%; height: 0%;
+    border-radius: var(--pill);
+    background: linear-gradient(180deg, var(--accent), var(--accent-2));
+    box-shadow: 0 0 18px -3px rgba(34,211,238,0.7);
+    transition: height 0.2s var(--ease);
+  }
+  /* แถบเป้าหมาย = ช่วงมุมที่ต้องค้างของ checkpoint ปัจจุบัน */
+  .sweep-band {
+    position: absolute; left: -4px; right: -4px; top: 0; height: 0;
+    border-radius: 7px;
+    background: rgba(255,255,255,0.12);
+    box-shadow: inset 0 0 0 1px rgba(255,255,255,0.28);
+    transition: top 0.22s var(--ease), height 0.22s var(--ease),
+                background 0.2s var(--ease), box-shadow 0.2s var(--ease);
+  }
+  .sweep-band.dwell {
+    box-shadow: inset 0 0 0 1px rgba(34,211,238,0.75), 0 0 16px -3px rgba(34,211,238,0.6);
+  }
+  /* ไล่เต็มกรอบตามเวลาที่ค้าง = การเคลื่อนไหวต่อเนื่องที่หายไปตอนเปลี่ยนเป็น checkpoint
+     (แถบหลักกระโดดทีละขั้น 5° ไม่ไหลเหมือนเดิมเพราะเป็นระบบจุดแล้ว) */
+  .sweep-band > i {
+    position: absolute; left: 0; right: 0; bottom: 0; height: 0;
+    border-radius: 6px; display: block;
+    background: rgba(34,211,238,0.5);
+    transition: height 0.1s linear;
+  }
+  .sweep-ticks { position: absolute; inset: 0; }
+  .sweep-marker {
+    position: absolute; left: -4px; top: 0%;
+    width: 21px; height: 4px; border-radius: var(--pill);
+    background: #fff; box-shadow: 0 0 12px rgba(255,255,255,0.65);
+    transition: top 0.08s var(--ease);
+  }
+  .sweep-tick-line { position: absolute; left: -3px; width: 19px; height: 1px; background: rgba(255,255,255,0.28); }
+  /* จุดที่ค้างผ่านแล้วเป็นสีเน้น เห็นความคืบหน้าได้จากขีดโดยตรง */
+  .sweep-tick-line.done { background: var(--accent); height: 2px; }
+  .sweep-tick-text.done { color: var(--accent); font-weight: 700; }
+  .sweep-tick-text.target { color: #fff; font-weight: 700; }
+  .sweep-tick-line.target { background: #fff; height: 2px; }
+  /* right:100% = วางชิดซ้ายของ track พอดี ป้ายจึงอยู่ในกล่องเสมอ
+     ไม่ว่ากล่องจะกว้างเท่าไร (ของเดิมใช้ left:20px แล้วล้นออกนอกกล่อง) */
+  .sweep-tick-text {
+    position: absolute; right: 100%; margin-right: 8px;
+    font-family: var(--mono); font-size: 9.5px; font-weight: 500;
+    color: var(--muted-2); white-space: nowrap; transform: translateY(-50%);
+  }
+  .sweep-label {
+    margin-top: 12px; font-size: 10px; font-weight: 300;
+    color: var(--muted); text-align: center; line-height: 1.45;
+    text-wrap: balance;
+  }
+  .sweep-label b {
+    display: block; margin-top: 4px; white-space: nowrap;
+    font-family: var(--mono); font-size: 13px; font-weight: 700; color: var(--accent);
+  }
+  .sweep-label.paused b { color: var(--warn); }
+
+  /* ---- step hint (คำสั่งทีละขั้น — เป็น element หลักที่ผู้ใช้ต้องอ่าน) ---- */
+  .step-hint {
+    display: flex; align-items: center; gap: 14px;
+    background: var(--surface);
+    border: 1px solid var(--border-soft);
+    border-radius: var(--r-md);
+    padding: 17px 21px; min-height: 62px;
+    font-size: 14.5px; font-weight: 300; line-height: 1.65;
+    transition: border-color 0.35s var(--ease), background 0.35s var(--ease);
+  }
+  /* จุดสถานะเป็น ::before -> เปลี่ยนสีตาม class ได้โดย JS ไม่ต้องรู้เรื่องเลย */
+  .step-hint::before {
+    content: ""; flex: none; width: 9px; height: 9px; border-radius: var(--pill);
+    background: var(--accent); box-shadow: 0 0 0 4px var(--accent-soft);
+    animation: pulse 2.4s var(--ease) infinite;
+  }
+  .step-hint.blocked { border-color: rgba(251,113,133,0.22); background: rgba(251,113,133,0.05); }
+  .step-hint.blocked::before { background: var(--warn); box-shadow: 0 0 0 4px var(--warn-soft); }
+  .step-hint.done { border-color: rgba(34,211,238,0.26); background: rgba(34,211,238,0.05); }
+  .step-hint.done::before { animation: none; }
+  .step-hint b { font-weight: 600; color: #fff; }
+  @keyframes pulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.4; transform: scale(0.8); }
+  }
+
+  /* ---- buttons: pill ล้วน ไม่มีมุมคม ------------------------------------- */
+  .controls { display: flex; flex-wrap: wrap; gap: 11px; justify-content: center; }
+  button {
+    font-family: var(--font);
+    background: linear-gradient(135deg, var(--accent), var(--accent-2));
+    color: #04070C;
+    border: none; border-radius: var(--pill);
+    padding: 14px 32px;
+    font-size: 15px; font-weight: 600; letter-spacing: -0.01em;
+    cursor: pointer;
+    box-shadow: 0 10px 30px -12px rgba(34,211,238,0.75);
+    transition: transform 0.22s var(--ease), box-shadow 0.28s var(--ease), background 0.25s var(--ease);
+  }
+  button:hover:not(:disabled) { transform: translateY(-2px); box-shadow: 0 16px 38px -12px rgba(34,211,238,0.9); }
+  button:active:not(:disabled) { transform: translateY(0); }
+  button:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+  button.secondary {
+    background: var(--surface); color: var(--text);
+    border: 1px solid var(--border); box-shadow: none;
+  }
+  button.secondary:hover:not(:disabled) { background: var(--surface-hi); transform: translateY(-2px); box-shadow: none; }
+  /* :disabled ต้องอยู่ท้ายสุด ไม่งั้น .secondary ที่ specificity เท่ากันจะชนะ */
+  button:disabled {
+    background: transparent; color: var(--muted-2);
+    border: 1px solid var(--border-soft);
+    box-shadow: none; cursor: not-allowed; transform: none; opacity: 0.5;
+  }
+
+  .log-line {
+    text-align: center; min-height: 18px;
+    font-family: var(--mono); font-size: 11px; font-weight: 500;
+    color: var(--muted-2); font-variant-numeric: tabular-nums;
+  }
+
+  /* ---- disclosure (ขั้นสูง + วิธีใช้) — ปิดไว้เพื่อให้หน้าจอ minimal ----- */
+  details.advanced, details.help {
+    background: var(--surface);
+    border: 1px solid var(--border-soft);
+    border-radius: var(--r-md);
+    padding: 15px 21px;
+    font-size: 13px; color: var(--muted);
+    transition: background 0.3s var(--ease);
+  }
+  details.advanced:hover, details.help:hover { background: var(--surface-hi); }
+  details summary {
+    cursor: pointer; list-style: none;
+    display: flex; align-items: center; gap: 10px;
+    font-size: 13.5px; font-weight: 500; color: var(--text);
+  }
+  details summary::-webkit-details-marker { display: none; }
+  details summary::before {
+    content: "+"; font-family: var(--mono); font-size: 15px;
+    color: var(--accent); line-height: 1; width: 10px;
+  }
+  details[open] summary::before { content: "–"; }
+
+  .adv-grid {
+    display: grid; grid-template-columns: 1fr 1fr;
+    gap: 14px 18px; margin-top: 18px; align-items: end;
+  }
+  .adv-grid label {
+    display: flex; flex-direction: column; gap: 7px;
+    font-size: 11.5px; font-weight: 400; color: var(--muted);
+  }
+  .adv-grid input, .adv-grid select {
+    background: rgba(255,255,255,0.04);
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: var(--r-sm);
+    padding: 11px 14px; font-size: 13.5px; font-family: var(--font);
+    transition: border-color 0.2s var(--ease), background 0.2s var(--ease);
+  }
+  .adv-grid input:focus, .adv-grid select:focus {
+    outline: none; border-color: var(--accent); background: rgba(34,211,238,0.06);
+  }
+  .adv-grid button { padding: 11px 20px; font-size: 13px; }
+  .adv-note {
+    grid-column: 1 / -1; margin-top: 2px;
+    font-size: 11.5px; font-weight: 300; line-height: 1.7; color: var(--muted-2);
+  }
+
+  .help-body { margin-top: 16px; font-size: 13px; font-weight: 300; line-height: 1.85; }
+  .help-body b { color: var(--text); font-weight: 600; }
+  .help-body code {
+    font-family: var(--mono); font-size: 11.5px;
+    background: rgba(255,255,255,0.06); border: 1px solid var(--border-soft);
+    padding: 2px 7px; border-radius: 7px;
+  }
+  .help-body p { margin: 0 0 14px; }
+  .help-body p:last-child { margin-bottom: 0; }
+
+  @media (max-width: 620px) {
+    header { padding: 26px 18px 4px; }
+    header h1 { font-size: 17px; }
+    .wrap { padding: 14px 14px 36px; gap: 12px; }
+    .stage { border-radius: var(--r-md); }
+    button { flex: 1 1 42%; padding: 14px 16px; font-size: 14px; }
+    .top-bar { right: 74px; top: 11px; left: 11px; gap: 6px; }
+    .angle-badge { font-size: 15.5px; padding: 7px 13px; }
+    .timer-badge { font-size: 10.5px; padding: 6px 11px; }
+    .sweep-wrap { width: 64px; right: 8px; padding: 11px 5px; }
+    .sweep-tick-text { margin-right: 6px; font-size: 9px; }
+    .countdown { padding: 46px 8px; }
+    .cd-sub { font-size: 11.5px; padding: 8px 15px; }
+    .adv-grid { grid-template-columns: 1fr; }
+    .step-hint { font-size: 13.5px; padding: 15px 17px; }
+  }
+
+  /* เคารพการตั้งค่าของผู้ใช้ที่ปิด animation (ป้องกันอาการเวียนหัว) */
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation: none !important; transition-duration: 0.01ms !important; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Neck Flexion Demo <span class="ver">v2</span></h1>
+  <p>MediaPipe Face + Pose Landmarker — ประมวลผลบนเครื่อง ไม่มีการส่งภาพออกนอกเบราว์เซอร์</p>
+</header>
+
+<div class="wrap">
+
+  <div class="stage" id="stage">
+    <video id="video" autoplay playsinline muted></video>
+    <canvas id="overlay"></canvas>
+
+    <svg class="distance-guide-svg" id="distanceGuideSvg" viewBox="0 0 100 100" preserveAspectRatio="none">
+      <ellipse id="distanceGuideEllipse" cx="50" cy="50" rx="34" ry="47"
+        fill="none" stroke="#64748B" stroke-width="2.5" stroke-dasharray="5 6" stroke-linecap="round" />
+    </svg>
+
+    <!-- ป้ายบนอยู่ในแถว flex เดียวกัน จึงดันกันเองและทับกันไม่ได้
+         (ของเดิมวางด้วย absolute ทั้งคู่ -> บนจอแคบมันซ้อนกัน) -->
+    <div class="top-bar">
+      <div class="angle-badge ok" id="angleBadge">รอเปิดกล้อง</div>
+      <div class="timer-badge" id="timerBadge" hidden>0.0 วิ</div>
+    </div>
+    <div class="distance-badge neutral" id="distanceBadge">รอตรวจจับใบหน้า</div>
+
+    <!-- countdown overlay: ใช้ทั้ง CALIB (3-2-1) และ HOLD (ค้างมุมไว้) -->
+    <div class="countdown" id="countdown" hidden>
+      <div class="cd-dial">
+        <svg class="cd-ring" viewBox="0 0 120 120">
+          <circle class="cd-ring-bg" cx="60" cy="60" r="52"></circle>
+          <circle class="cd-ring-fg" id="cdRingFg" cx="60" cy="60" r="52"></circle>
+        </svg>
+        <div class="cd-num" id="cdNum">3</div>
+      </div>
+      <div class="cd-sub" id="cdSub">นั่งคอตรง มองตรงกล้อง</div>
+    </div>
+
+    <div class="sweep-wrap" id="sweepWrap">
+      <div class="sweep-track">
+        <div class="sweep-band" id="sweepBand"><i id="sweepBandFill"></i></div>
+        <div class="sweep-fill" id="sweepFill"></div>
+        <div class="sweep-marker" id="sweepMarker"></div>
+        <!-- ขีดบอก checkpoint สร้างจาก JS ตาม CP_STEP -->
+        <div class="sweep-ticks" id="sweepTicks"></div>
+      </div>
+      <div class="sweep-label" id="sweepLabel">ตั้ง baseline ก่อน</div>
+    </div>
+  </div>
+
+  <div class="step-hint" id="stepHint">กด <b>“เปิดกล้อง”</b> เพื่อเริ่ม</div>
+
+  <!-- เหลือปุ่มที่มองเห็นพร้อมกันสูงสุด 2 ปุ่ม:
+       ปุ่มหลัก 1 ปุ่มที่เปลี่ยนหน้าที่ตาม state + ปุ่มดาวน์โหลด -->
+  <div class="controls">
+    <button id="btnPrimary">เปิดกล้อง</button>
+    <button id="btnDownload" class="secondary" disabled>ดาวน์โหลด CSV</button>
+  </div>
+
+  <div class="log-line" id="logLine"></div>
+
+  <details class="advanced">
+    <summary>ตั้งค่าขั้นสูง / ข้อมูลผู้ทดสอบ</summary>
+    <div class="adv-grid">
+      <label>รหัสผู้ทดสอบ (ลงใน CSV)
+        <input type="text" id="subjectId" placeholder="เช่น S01" autocomplete="off" />
+      </label>
+      <label>ทิศทางการก้ม
+        <select id="signMode">
+          <option value="auto">อัตโนมัติ (แนะนำ)</option>
+          <option value="pos">ก้มลง = ค่าบวก</option>
+          <option value="neg">ก้มลง = ค่าลบ</option>
+        </select>
+      </label>
+      <label>ยอมให้ระยะต่างจาก baseline ± (ซม.)
+        <input type="number" id="distTol" value="10" min="4" max="30" step="1" />
+      </label>
+      <label>ใช้ Pose Landmarker (กันลำตัวขยับ)
+        <select id="usePose">
+          <option value="1">เปิด (แนะนำ)</option>
+          <option value="0">ปิด (เครื่องช้า)</option>
+        </select>
+      </label>
+      <label>&nbsp;
+        <button type="button" id="btnStopCam" class="secondary" style="padding:8px 12px;font-size:13px;">ปิดกล้อง</button>
+      </label>
+      <div class="adv-note">
+        ระยะอ่านจาก <b>translation z ของ transformation matrix</b> (หน่วย ซม. โดยประมาณ) จึงไม่ขึ้นกับความละเอียดกล้อง
+        ระบบเทียบกับระยะ ณ ตอนตั้ง baseline ไม่ใช่ค่าสัมบูรณ์ — <b>การก้มหน้าทำให้หัวเข้าใกล้กล้องเองราว 4-5 ซม.</b>
+        ค่า ±10 จึงเผื่อไว้แล้ว ถ้าตั้งแคบกว่านี้ระบบจะปฏิเสธเฟรมตอนก้มลึกสุดซึ่งเป็นเฟรมที่สำคัญที่สุด
+      </div>
+    </div>
+  </details>
+
+  <details class="help">
+    <summary>วิธีใช้ และข้อจำกัดที่ต้องรู้</summary>
+    <div class="help-body">
+      <p><b>ขั้นตอน:</b> เปิดกล้อง → ขยับให้ป้ายล่างขึ้น “ระยะกำลังดี” → กดตั้ง Baseline แล้ว
+      <b>ปล่อยมือจากเมาส์</b> ระบบนับถอยหลัง 3 วิ แล้วเก็บค่าเฉลี่ยเป็นศูนย์ → ค่อยๆ ก้มลง
+      แถบขวาจะขึ้นตามมุมที่ <b>ค้างไว้ได้จริง</b> (ต้องค้างมุมนั้น ~1.2 วิ ถึงนับ) →
+      กด “จบการวัด” เมื่อไหร่ก็ได้แล้วดาวน์โหลด CSV</p>
+
+      <p><b>ข้อจำกัดที่ต้องรู้:</b> ค่าที่วัดคือ <b>มุมก้มของศีรษะเทียบกล้อง</b> ไม่ใช่ craniovertebral angle จริง
+      (CVA ต้องถ่ายจาก<b>ด้านข้าง</b>) Pose Landmarker ที่เพิ่มเข้ามาใช้<b>เฝ้าไหล่</b>เพื่อจับว่าผู้ทดสอบขยับลำตัว
+      หรือเอนเข้า-ออกระหว่างวัดหรือไม่ ไม่ได้ใช้คำนวณ CVA — ถ้าต้องการ CVA ให้ตั้งกล้องที่สองด้านข้าง 90°</p>
+
+      <p><b>ถ้ากล้องไม่ขึ้น:</b> เบราว์เซอร์บล็อกกล้องเมื่อเปิดแบบ <code>file://</code> ให้รัน
+      <code>python3 -m http.server 8000</code> แล้วเปิด <code>http://localhost:8000/head_pitch_demo.html</code></p>
+    </div>
+  </details>
+
+</div>
+
+<script type="module">
+  import {
+    FaceLandmarker,
+    PoseLandmarker,
+    FilesetResolver,
+  } from "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14";
+
+  /* =====================================================================
+     CONFIG — ค่าปรับได้ทั้งหมดรวมไว้ที่เดียว
+     ===================================================================== */
+  const CFG = {
+    // ---- เกณฑ์มุม ----
+    ANGLE_LIMIT: 20,        // มุมที่ถือว่า "เกิน" (badge เปลี่ยนเป็นแดง)
+    ANGLE_HYSTERESIS: 3,    // buffer กันตัวเลขกระพริบรอบ threshold
+    ANGLE_BUFFER: 5,        // กวาดเลย limit ไปอีกเท่าไรถึงถือว่าครบ
+
+    // ---- เกณฑ์คุณภาพเฟรม (gate) ----
+    // ระยะอ่านจาก tz ของ matrix เป็นหน่วยเมตริก จึงไม่ผูกกับความละเอียดกล้อง
+    //
+    // สำคัญ: วัดกับคนจริงแล้วพบว่า "การก้มหน้าทำให้หัวเข้าใกล้กล้องราว 4-5 ซม."
+    // (นั่งตรง 43 ซม. -> ก้มสุด 39 ซม.) ถ้าใช้ขอบล่างแบบค่าสัมบูรณ์ เฟรมที่มุมลึก
+    // ที่สุด (ซึ่งคือเฟรมที่สำคัญที่สุด) จะโดนปฏิเสธทั้งหมด แล้ว checkpoint จะสั่งให้
+    // กลับไปมุมเดิมวนไม่จบ -> วัดได้ 17° ทั้งที่ก้มจริง 35°
+    //
+    // จึงแยกเป็นสองชั้น:
+    //   1) ช่วงสัมบูรณ์กว้างๆ = กันเคสผิดปกติจริงๆ (หน้าติดกล้อง / อยู่ไกลมาก)
+    //   2) ช่วงเทียบ baseline = ตัวจับ "เอนตัวเข้า-ออก" ตัวจริง
+    //      ตั้งให้กว้างพอรองรับการขยับที่เกิดจากการก้มเองตามธรรมชาติ
+    // ส่วนการขยับลำตัวจริงๆ มีการเฝ้าไหล่ด้วย Pose คอยจับอีกชั้น
+    DIST_ABS_MIN_CM: 30,
+    DIST_ABS_MAX_CM: 85,
+    DIST_REL_TOL_CM: 10,
+    CENTER_X_TOL: 0.20,     // จมูกต้องอยู่ใน 0.5 ± tol ของความกว้างเฟรม
+    CENTER_Y_TOL: 0.25,
+    YAW_LIMIT_DEG: 12,      // หันซ้าย-ขวาเกินนี้ pitch จะไม่ใช่ flexion บริสุทธิ์
+    ROLL_LIMIT_DEG: 12,     // เอียงหัวเกินนี้ก็เช่นกัน
+
+    // ---- baseline ----
+    CALIB_COUNT_SEC: 3,     // นับถอยหลังกี่วินาทีก่อนเก็บค่า
+    CALIB_WINDOW_MS: 1000,  // เก็บค่าเฉลี่ยจากช่วงท้ายกี่ ms
+    CALIB_MAX_SD: 2.0,      // ถ้า SD สูงกว่านี้ถือว่าขยับเยอะเกิน ให้นับใหม่
+
+    // ---- ยืนยันมุมสูงสุดด้วยการค้าง ----
+    HOLD_MS: 1200,          // ต้องค้างที่ checkpoint นานเท่านี้ถึงจะผ่านจุดนั้น
+    CP_STEP: 5,             // ระยะห่างระหว่าง checkpoint (องศา)
+
+    // ---- ตัวกรองสัญญาณ (One Euro) ----
+    FILTER_MIN_CUTOFF: 0.6, // ต่ำ = นิ่งขึ้นแต่หน่วงขึ้น (0.6 ให้ error ต่ำสุดจาก simulation)
+    FILTER_BETA: 0.02,      // สูง = ตอบสนองการขยับเร็วดีขึ้น
+
+    // ---- session ----
+    SESSION_TIMEOUT_SEC: 120, // กันกรณีลืมกดจบ
+
+    // ---- torso (Pose) ----
+    TORSO_DRIFT_TOL: 0.30,  // ไหล่ขยับได้กี่เท่าของความกว้างไหล่ baseline
+    TORSO_WIDTH_TOL: 0.18,  // ความกว้างไหล่เปลี่ยนได้กี่ % (บอกว่าเอนเข้า-ออก)
+    POSE_EVERY_N: 2,        // รัน pose ทุกๆ กี่เฟรม (ลดภาระ GPU)
+
+    // ---- auto sign ----
+    AUTO_SIGN_DEG: 7,       // เบี่ยงจาก baseline เกินนี้ถึงจะใช้ตัดสินทิศ
+    AUTO_SIGN_FRAMES: 8,    // ต้องติดกันกี่เฟรม (กัน noise ล็อกผิดทิศ)
+  };
+  const ANGLE_MAX = CFG.ANGLE_LIMIT + CFG.ANGLE_BUFFER;
+
+  /* ---------------------------------------------------------------------
+     CHECKPOINT ทุก CP_STEP องศา — ต้องค้างทีละจุด ไล่ตามลำดับ
+     ---------------------------------------------------------------------
+     แถบยอมรับของจุด A คือ [A, A+CP_STEP) — คือ "ตั้งแต่ A ขึ้นไป แต่ยังไม่ถึงจุดถัดไป"
+     จุดสุดท้ายเปิดปลายบน [A, อินฟินิตี้)
+
+     ทำไมไม่ใช่ A ± ครึ่งช่วง (ซึ่งเคยใช้แล้วผิด):
+       แถบสมมาตรทำให้จุดที่ชื่อ "10°" รับตั้งแต่ 7.5° — ผ่านได้โดยไม่เคยแตะ 10°
+       วัดกับคนจริงแล้วพบว่า 4 ใน 5 จุดผ่านทั้งที่ยังไม่ถึงเป้า
+       (10°->8.70, 15°->13.06, 20°->18.05, 25°->24.71) ระบบจึงรายงานว่าครบ
+       ทั้งที่ผู้ทดสอบไม่เคยค้างถึง 25° เลย
+     ขอบล่างที่เท่ากับเป้าพอดีรับประกันว่า "ผ่านจุด A = ค้างที่ A° ขึ้นไปจริง"
+     และยังบังคับให้หยุดทีละจุดเหมือนเดิม เพราะขอบบนกันไม่ให้ก้มรวดเดียวข้ามไป
+     --------------------------------------------------------------------- */
+  const CHECKPOINTS = [];
+  for (let a = CFG.CP_STEP; a <= ANGLE_MAX; a += CFG.CP_STEP) CHECKPOINTS.push(a);
+  // สเกลของแถบวัดต้องเลยจุดสุดท้ายไป 1 ช่วง ไม่งั้นแถบของจุดสุดท้ายจะสูงเป็น 0
+  const GAUGE_MAX = ANGLE_MAX + CFG.CP_STEP;
+
+  function cpBandOf(idx) {
+    const deg = CHECKPOINTS[idx];
+    const isLast = idx === CHECKPOINTS.length - 1;
+    return { deg, lo: deg, hi: isLast ? Infinity : deg + CFG.CP_STEP };
+  }
+  function inCpBand(x, idx) {
+    const b = cpBandOf(idx);
+    return x >= b.lo && x < b.hi;
+  }
+  // ข้อความบอกช่วงที่ต้องค้าง
+  function cpRangeText(idx) {
+    const b = cpBandOf(idx);
+    return b.hi === Infinity ? `${b.deg}° ขึ้นไป` : `${b.deg}–${b.hi}°`;
+  }
+
+  const NOSE_IDX = 1;
+  const POSE_L_SHOULDER = 11;
+  const POSE_R_SHOULDER = 12;
+
+  /* =====================================================================
+     DOM
+     ===================================================================== */
+  const stage = document.getElementById("stage");
+  const video = document.getElementById("video");
+  const overlay = document.getElementById("overlay");
+  const octx = overlay.getContext("2d");
+
+  const angleBadge = document.getElementById("angleBadge");
+  const timerBadge = document.getElementById("timerBadge");
+  const distanceBadge = document.getElementById("distanceBadge");
+  const distanceGuideEllipse = document.getElementById("distanceGuideEllipse");
+
+  const countdown = document.getElementById("countdown");
+  const cdRingFg = document.getElementById("cdRingFg");
+  const cdNum = document.getElementById("cdNum");
+  const cdSub = document.getElementById("cdSub");
+
+  const sweepWrap = document.getElementById("sweepWrap");
+  const sweepFill = document.getElementById("sweepFill");
+  const sweepBand = document.getElementById("sweepBand");
+  const sweepBandFill = document.getElementById("sweepBandFill");
+  const sweepTicks = document.getElementById("sweepTicks");
+  const sweepMarker = document.getElementById("sweepMarker");
+  const sweepLabel = document.getElementById("sweepLabel");
+
+
+  const stepHint = document.getElementById("stepHint");
+  const btnPrimary = document.getElementById("btnPrimary");
+  const btnDownload = document.getElementById("btnDownload");
+  const btnStopCam = document.getElementById("btnStopCam");
+  const logLine = document.getElementById("logLine");
+
+  const subjectIdInput = document.getElementById("subjectId");
+  const signModeSelect = document.getElementById("signMode");
+  const distTolInput = document.getElementById("distTol");
+  const usePoseSelect = document.getElementById("usePose");
+
+  // สร้างขีดบอกตำแหน่ง 0° และทุก checkpoint (บนลงล่าง: 0% = 0°)
+  const tickEls = [];
+  (function buildTicks() {
+    const mk = (deg) => {
+      const top = (deg / GAUGE_MAX) * 100;
+      const line = document.createElement("div");
+      line.className = "sweep-tick-line";
+      line.style.top = `${top}%`;
+      const text = document.createElement("div");
+      text.className = "sweep-tick-text";
+      text.style.top = `${top}%`;
+      text.textContent = `${deg}°`;
+      sweepTicks.appendChild(line);
+      sweepTicks.appendChild(text);
+      return { deg, line, text };
+    };
+    mk(0);
+    CHECKPOINTS.forEach((d) => tickEls.push(mk(d)));
+  })();
+
+  // ทาสีขีดตามสถานะ: ผ่านแล้ว / เป้าหมายปัจจุบัน / ยังไม่ถึง
+  function renderTicks() {
+    tickEls.forEach((t, i) => {
+      const done = i < cpIndex;
+      const target = i === cpIndex;
+      t.line.classList.toggle("done", done);
+      t.text.classList.toggle("done", done);
+      t.line.classList.toggle("target", target);
+      t.text.classList.toggle("target", target);
+    });
+  }
+
+  const RING_C = 2 * Math.PI * 52; // เส้นรอบวงของ progress ring
+  cdRingFg.style.strokeDasharray = `${RING_C}`;
+  cdRingFg.style.strokeDashoffset = `${RING_C}`;
+
+  /* =====================================================================
+     One Euro Filter
+     ---------------------------------------------------------------------
+     ของเดิมเอา running max ของ pitch "ดิบ" ซึ่งมี noise ±1-2°/เฟรม
+     พอเก็บ max ของสัญญาณที่มี noise มันจะไต่ขึ้นตาม spike แล้วไม่ลงอีกเลย
+     ทำให้มุมสูงสุดที่รายงาน "เกินจริง" เสมอ (ยิ่งวัดนานยิ่งเกิน)
+     ที่นี่จึงกรองสองชั้น: (1) One Euro ตัด noise รายเฟรม
+                          (2) ต้องค้างมุมไว้จริง HOLD_MS ถึงจะนับ (ดู sustainedAngle)
+     วัดผลจริงด้วย simulation: v1 เกินจริง +4.12° -> v2 เหลือ +0.12°
+     ===================================================================== */
+  class OneEuroFilter {
+    constructor(minCutoff, beta, dCutoff = 1.0) {
+      this.minCutoff = minCutoff; this.beta = beta; this.dCutoff = dCutoff;
+      this.xPrev = null; this.dxPrev = 0; this.tPrev = null;
+    }
+    static alpha(cutoff, dt) {
+      const tau = 1 / (2 * Math.PI * cutoff);
+      return 1 / (1 + tau / dt);
+    }
+    reset() { this.xPrev = null; this.dxPrev = 0; this.tPrev = null; }
+    filter(x, tMs) {
+      if (this.xPrev === null) { this.xPrev = x; this.tPrev = tMs; return x; }
+      const dt = Math.max(1e-3, (tMs - this.tPrev) / 1000);
+      this.tPrev = tMs;
+      const dx = (x - this.xPrev) / dt;
+      const dxHat = this.dxPrev + OneEuroFilter.alpha(this.dCutoff, dt) * (dx - this.dxPrev);
+      this.dxPrev = dxHat;
+      // cutoff ปรับตามความเร็ว: ขยับเร็ว -> กรองน้อย (ไม่หน่วง), นิ่ง -> กรองหนัก (ไม่สั่น)
+      const cutoff = this.minCutoff + this.beta * Math.abs(dxHat);
+      const xHat = this.xPrev + OneEuroFilter.alpha(cutoff, dt) * (x - this.xPrev);
+      this.xPrev = xHat;
+      return xHat;
+    }
+  }
+  const pitchFilter = new OneEuroFilter(CFG.FILTER_MIN_CUTOFF, CFG.FILTER_BETA);
+
+  /* =====================================================================
+     คณิตศาสตร์: แกะ pitch / yaw / roll / ระยะ จาก transformation matrix
+     ---------------------------------------------------------------------
+     MediaPipe คืน matrix 4x4 แบบ column-major -> index = col*4 + row
+     ใช้ decomposition แบบ R = Rz(roll) * Ry(yaw) * Rx(pitch)
+       R[2][1]=m[6]  R[2][2]=m[10]  -> pitch = atan2(R21, R22)
+       R[2][0]=m[2]                 -> yaw   = atan2(-R20, hypot(R00,R10))
+       R[0][0]=m[0]  R[1][0]=m[1]   -> roll  = atan2(R10, R00)
+     คอลัมน์สุดท้าย m[12..14] คือ translation (tx,ty,tz) หน่วยเมตริก(ซม.)
+     ของเดิมดึงแค่ pitch แล้ววัดระยะด้วยพิกเซลระหว่างตา ทั้งที่ tz มีอยู่แล้วในมือ
+     ===================================================================== */
+  const RAD2DEG = 180 / Math.PI;
+  function decomposeHeadPose(m) {
+    const r00 = m[0], r10 = m[1], r20 = m[2];
+    const r21 = m[6], r22 = m[10];
+    return {
+      pitch: Math.atan2(r21, r22) * RAD2DEG,
+      yaw: Math.atan2(-r20, Math.hypot(r00, r10)) * RAD2DEG,
+      roll: Math.atan2(r10, r00) * RAD2DEG,
+      distCm: Math.abs(m[14]),
+    };
+  }
+
+  /* =====================================================================
+     STATE MACHINE
+     ---------------------------------------------------------------------
+     ของเดิมมี 4 ปุ่ม + 1 checkbox ซึ่ง "รีเซ็ตการกวาดมุม" เป็น subset ของ
+     "ตั้ง Baseline" (ทั้งคู่ reset sweep + เริ่ม log ใหม่) และปุ่มเปิดกล้อง
+     กลายเป็นป้ายตายหลังกดไปแล้ว ที่นี่ยุบเหลือปุ่มหลัก 1 ปุ่มที่เปลี่ยน
+     หน้าที่ตาม state + ปุ่มดาวน์โหลดที่ใช้ได้เสมอเมื่อมีข้อมูล
+     ===================================================================== */
+  const S = {
+    IDLE: "idle",       // ยังไม่เปิดกล้อง
+    LOADING: "loading", // กำลังโหลดโมเดล/ขอสิทธิ์กล้อง
+    READY: "ready",     // กล้องติดแล้ว รอกดตั้ง baseline
+    CALIB: "calib",     // กำลังนับถอยหลังเก็บ baseline
+    MEASURE: "measure", // กำลังวัด + บันทึก log
+    DONE: "done",       // จบการวัด ดาวน์โหลดได้
+  };
+  let state = S.IDLE;
+
+  let running = false;
+  let mediaStream = null;
+  let faceLandmarker = null;
+  let poseLandmarker = null;
+  let poseReady = false;
+  let frameCounter = 0;
+  let lastDetectTs = 0;
+  let lastVideoTime = -1;
+
+  // baseline
+  let baselinePitch = null;
+  let baselineTorso = null; // {midX, midY, width}
+  let baselineDistCm = null;
+  let calibStartMs = null;
+  let calibSamples = [];    // {t, pitch}
+
+  // sign
+  let signFactor = 1;
+  let signLocked = false;
+  let signCandidate = 0;
+  let signStreak = 0;
+
+  // sweep
+  let confirmedMax = 0;     // มุมจริงของ checkpoint ล่าสุดที่ผ่าน
+  let cpIndex = 0;          // checkpoint ถัดไปที่ต้องทำ
+  let cpResults = [];       // [{deg, actual, t}] ผลของแต่ละจุดที่ผ่านแล้ว
+  let holdBuf = [];         // ring buffer {t, a} ย้อนหลัง HOLD_MS
+  let dwellStart = null;    // เวลาที่เริ่มอยู่ในแถบของ checkpoint ปัจจุบัน
+  let lastMarkerDeg = 0;    // มุมล่าสุดที่วาดเข็มไว้ ใช้ค้างตำแหน่งตอนหลุดเฟรม
+  let lastHintKey = "";     // กันไม่ให้เขียน innerHTML ทุกเฟรมโดยไม่จำเป็น
+  let sweepComplete = false;
+
+  // session / log
+  let sessionStartMs = null;
+  let logRows = [];
+  let lastPoseMetrics = null;
+  let downloadedSinceLastRun = true;
+  let distanceColor = "#64748B";
+  let warnState = false;
+
+  /* =====================================================================
+     UI helpers
+     ===================================================================== */
+  function setHint(html, kind = "") {
+    stepHint.className = "step-hint" + (kind ? " " + kind : "");
+    stepHint.innerHTML = html;
+  }
+
+  function showCountdown(num, sub, progress, opts = {}) {
+    countdown.hidden = false;
+    // ใส่ class ที่ stage ตรงๆ (แทนที่จะให้ CSS ดักด้วย :has([hidden]))
+    // เพราะสถานะ "โฟกัส" เป็นเรื่องของ state machine ไม่ใช่ผลข้างเคียงของ
+    // attribute hidden — อ่านง่ายกว่าและ debug ง่ายกว่าเวลา UI ไม่ตรงสถานะ
+    stage.classList.add("focus");
+    countdown.classList.toggle("hold", !!opts.hold);
+    countdown.classList.toggle("warn", !!opts.warn);
+    cdNum.textContent = num;
+    cdNum.classList.toggle("small", !!opts.smallNum);
+    cdSub.textContent = sub;
+    cdRingFg.style.strokeDashoffset = `${RING_C * (1 - Math.max(0, Math.min(1, progress)))}`;
+  }
+  function hideCountdown() {
+    countdown.hidden = true;
+    stage.classList.remove("focus");
+  }
+
+  function setState(next) {
+    state = next;
+    switch (next) {
+      case S.IDLE:
+        btnPrimary.textContent = "เปิดกล้อง";
+        btnPrimary.disabled = false;
+        sweepWrap.style.display = "none";
+        timerBadge.hidden = true;
+        hideCountdown();
+        setHint('กด <b>“เปิดกล้อง”</b> เพื่อเริ่ม');
+        break;
+      case S.LOADING:
+        btnPrimary.textContent = "กำลังโหลดโมเดล...";
+        btnPrimary.disabled = true;
+        setHint("กำลังโหลดโมเดลและขอสิทธิ์ใช้กล้อง...");
+        break;
+      case S.READY:
+        btnPrimary.textContent = "ตั้ง Baseline";
+        btnPrimary.disabled = false;
+        sweepWrap.style.display = "none";
+        timerBadge.hidden = true;
+        hideCountdown();
+        setHint("ขยับตัวให้ป้ายล่างขึ้น <b>“ระยะกำลังดี”</b> แล้วนั่งคอตรง → กด <b>“ตั้ง Baseline”</b>");
+        break;
+      case S.CALIB:
+        btnPrimary.textContent = "ยกเลิก";
+        btnPrimary.disabled = false;
+        sweepWrap.style.display = "none";
+        timerBadge.hidden = true;
+        setHint("<b>ปล่อยมือจากเมาส์</b> แล้วนั่งคอตรงนิ่งๆ จนกว่าจะนับครบ", "blocked");
+        break;
+      case S.MEASURE:
+        btnPrimary.textContent = "จบการวัด";
+        btnPrimary.disabled = false;
+        sweepWrap.style.display = "flex";
+        timerBadge.hidden = false;
+        setHint(`ก้มลงทีละขั้น แล้ว<b>ค้างไว้</b>ที่ทุกๆ ${CFG.CP_STEP}° จนวงแหวนเต็ม`);
+        break;
+      case S.DONE:
+        btnPrimary.textContent = "วัดคนถัดไป";
+        btnPrimary.disabled = false;
+        timerBadge.hidden = true;
+        hideCountdown();
+        break;
+    }
+    refreshDownloadButton();
+  }
+
+  // แก้บั๊กสำคัญของ v1: เดิมปุ่มดาวน์โหลดถูกปลดล็อกใน stopLogging() เท่านั้น
+  // ซึ่งถูกเรียกตอน "กวาดครบ 25°" อย่างเดียว => คนที่ ROM จำกัด (เคสที่สำคัญที่สุด)
+  // จะดาวน์โหลดข้อมูลไม่ได้เลย ตอนนี้ปลดล็อกทันทีที่มีข้อมูลอย่างน้อย 1 แถว
+  function refreshDownloadButton() {
+    btnDownload.disabled = logRows.length === 0;
+  }
+
+  /* =====================================================================
+     GATE — เฟรมนี้ "เชื่อถือได้" ไหม
+     ---------------------------------------------------------------------
+     รวมทุกเงื่อนไขไว้ที่เดียว แล้วคืนเหตุผลข้อแรกที่ไม่ผ่าน เพื่อเอาไป
+     แสดงบนจอให้ผู้ใช้แก้ได้ตรงจุด (ของเดิมเช็คแค่ระยะอย่างเดียว)
+     ===================================================================== */
+  function evaluateGate(head, nose, torso) {
+    // ชั้นที่ 1: ช่วงสัมบูรณ์กว้างๆ กันเคสผิดปกติจริงๆ
+    if (head.distCm > CFG.DIST_ABS_MAX_CM) return { ok: false, code: "too_far", msg: "ไกลเกินไป เข้ามาใกล้อีกหน่อย" };
+    if (head.distCm < CFG.DIST_ABS_MIN_CM) return { ok: false, code: "too_close", msg: "ใกล้เกินไป ถอยออกหน่อย" };
+
+    // ชั้นที่ 2: เทียบกับระยะตอนตั้ง baseline (ใช้ได้หลังตั้ง baseline แล้วเท่านั้น)
+    if (baselineDistCm !== null) {
+      const tol = Number(distTolInput.value) || CFG.DIST_REL_TOL_CM;
+      const delta = head.distCm - baselineDistCm;
+      if (delta > tol) return { ok: false, code: "moved_far", msg: "ถอยห่างจากเดิมมาก กลับท่าเดิม" };
+      if (delta < -tol) return { ok: false, code: "moved_near", msg: "เข้าใกล้กล้องกว่าเดิมมาก กลับท่าเดิม" };
+    }
+
+    // จมูกต้องอยู่กลางเฟรม: หน้าที่อยู่ขอบภาพทำให้ค่า pitch เพี้ยนจาก perspective
+    if (Math.abs(nose.x - 0.5) > CFG.CENTER_X_TOL) return { ok: false, code: "off_center", msg: "ขยับให้หน้าอยู่กลางจอ (ซ้าย-ขวา)" };
+    if (Math.abs(nose.y - 0.5) > CFG.CENTER_Y_TOL) return { ok: false, code: "off_center", msg: "ขยับให้หน้าอยู่กลางจอ (บน-ล่าง)" };
+
+    // หัน/เอียงหัวมาก -> pitch ไม่ใช่ flexion บริสุทธิ์อีกต่อไป
+    if (Math.abs(head.yaw) > CFG.YAW_LIMIT_DEG) return { ok: false, code: "yaw", msg: "หันหน้าเข้ากล้องตรงๆ" };
+    if (Math.abs(head.roll) > CFG.ROLL_LIMIT_DEG) return { ok: false, code: "roll", msg: "อย่าเอียงศีรษะ" };
+
+    // ลำตัวขยับ -> baseline ที่อ้างอิงไว้ใช้ไม่ได้แล้ว
+    if (baselineTorso && torso) {
+      const drift = Math.hypot(torso.midX - baselineTorso.midX, torso.midY - baselineTorso.midY) / baselineTorso.width;
+      const widthRatio = torso.width / baselineTorso.width;
+      if (drift > CFG.TORSO_DRIFT_TOL) return { ok: false, code: "torso_move", msg: "ลำตัวขยับ กลับไปนั่งท่าเดิม" };
+      if (Math.abs(widthRatio - 1) > CFG.TORSO_WIDTH_TOL) {
+        return { ok: false, code: "torso_lean", msg: widthRatio > 1 ? "เอนตัวเข้าหากล้อง กลับท่าเดิม" : "เอนตัวถอยหลัง กลับท่าเดิม" };
+      }
+    }
+    return { ok: true, code: "ok", msg: "ระยะกำลังดี" };
+  }
+
+  function paintGate(gate, hasFace) {
+    distanceBadge.classList.remove("good", "bad", "neutral");
+    if (!hasFace) {
+      distanceColor = "#64748B";
+      distanceBadge.classList.add("neutral");
+      distanceBadge.textContent = "ไม่พบใบหน้า";
+    } else if (gate.ok) {
+      distanceColor = "#22D3EE";
+      distanceBadge.classList.add("good");
+      distanceBadge.textContent = gate.msg;
+    } else {
+      distanceColor = "#FB7185";
+      distanceBadge.classList.add("bad");
+      distanceBadge.textContent = gate.msg;
+    }
+    distanceGuideEllipse.setAttribute("stroke", distanceColor);
+  }
+
+  /* =====================================================================
+     ยืนยันมุมสูงสุดด้วยการ "ค้างไว้"
+     ---------------------------------------------------------------------
+     sustainedAngle = ค่าต่ำสุดของมุมในหน้าต่างเวลา HOLD_MS ที่ผ่านมา
+     = "มุมที่คุณค้างไว้ได้ตลอดช่วงนั้นจริงๆ"
+     spike จาก noise ดันค่านี้ไม่ได้ เพราะ min จะกินมันทิ้ง
+     ===================================================================== */
+  function pushHold(t, angle) {
+    holdBuf.push({ t, a: angle });
+    while (holdBuf.length && t - holdBuf[0].t > CFG.HOLD_MS) holdBuf.shift();
+  }
+  function sustainedAngle(t) {
+    if (holdBuf.length < 8) return null;
+    if (t - holdBuf[0].t < CFG.HOLD_MS * 0.9) return null; // หน้าต่างยังไม่เต็ม
+    // ใช้ percentile ที่ 25 ของหน้าต่าง ไม่ใช่ min
+    // เหตุผล (วัดจาก simulation ramp 0->20° + Gaussian noise SD 1.5°, 30 รอบ):
+    //   running max ของค่าดิบ (แบบ v1) : error +4.12°   <- เกินจริงมาก
+    //   running max ของค่าที่กรองแล้ว   : error +1.39°
+    //   min ของหน้าต่าง                 : error -0.39°   <- ต่ำกว่าจริงเล็กน้อย
+    //   percentile 25 ของหน้าต่าง       : error +0.12°   <- ดีที่สุด
+    //   median ของหน้าต่าง              : error +0.37°
+    // p25 = "มุมที่คุณอยู่ที่นั่นหรือลึกกว่า อย่างน้อย 75% ของช่วงเวลาที่ค้าง"
+    // spike เดี่ยวๆ ดันค่านี้ไม่ขึ้น เพราะเป็นแค่ส่วนน้อยของหน้าต่าง
+    const sorted = holdBuf.map((s) => s.a).sort((a, b) => a - b);
+    return sorted[Math.min(sorted.length - 1, Math.floor(0.25 * sorted.length))];
+  }
+
+  // ค่ากลางของช่วงที่ค้าง — ใช้ "บันทึกว่าค้างที่มุมเท่าไรจริง"
+  // ต่างจาก sustainedAngle ที่ใช้ "ตัดสินว่าผ่านไหม" (เลือก p25 แบบระมัดระวัง)
+  // วัดจริงแล้ว p25 ให้ค่าต่ำกว่าเป้าราว 1.5-2° เมื่อผู้ใช้ค่อยๆ ก้มผ่านแถบ
+  // เพราะหน้าต่างเต็มไปด้วยมุมก่อนหน้าที่ยังตื้นกว่า
+  function medianHold() {
+    if (!holdBuf.length) return null;
+    const sorted = holdBuf.map((s) => s.a).sort((a, b) => a - b);
+    const m = Math.floor(sorted.length / 2);
+    return sorted.length % 2 ? sorted[m] : (sorted[m - 1] + sorted[m]) / 2;
+  }
+  // gate หลุด หรือหลุดออกนอกแถบ -> เริ่มนับค้างใหม่ทั้งหมด
+  // (บังคับให้การวัดแต่ละจุดเกิดขึ้นตอนเงื่อนไขครบตลอดช่วงจริงๆ
+  //  แทนกลไก checkpoint/resume แบบเดิมที่ซับซ้อนกว่าและอธิบายยากกว่า)
+  function clearHold() { holdBuf = []; dwellStart = null; }
+
+  /* =====================================================================
+     LOG — บันทึก "ทุกเฟรม" พร้อม flag คุณภาพ
+     ---------------------------------------------------------------------
+     ของเดิมทิ้งเฟรมที่ไม่นับ progress ออกจาก CSV ทำให้ time series ขาดช่วง
+     เป็นหลุมๆ วิเคราะห์ย้อนหลังแทบไม่ได้ (ไม่รู้ว่าหายไปตอนไหน เพราะอะไร)
+     ที่นี่เก็บครบทุกเฟรมแล้วใส่คอลัมน์ flag ให้ไป filter เอาตอน analysis
+     ===================================================================== */
+  // เรียงจาก "อ่านบ่อยที่สุด" ไป "ข้อมูลไว้ตรวจย้อนหลัง"
+  // เปิด Excel มาปุ๊บเห็น 2 คอลัมน์แรกคือคำตอบเลย ไม่ต้องเลื่อนหา
+  const CSV_COLUMNS = [
+    // --- ผลหลัก ---
+    "t_sec", "flexion_deg",
+    // --- checkpoint ---
+    "cp_captured", "target_cp_deg", "confirmed_max_deg",
+    // --- คุณภาพของเฟรมนั้น ---
+    "gate_ok", "gate_reason", "counted",
+    // --- ค่าดิบไว้ตรวจย้อนหลัง ---
+    "pitch_raw_deg", "pitch_filt_deg", "yaw_deg", "roll_deg", "dist_cm",
+    "nose_x", "nose_y",
+    "shoulder_mid_x", "shoulder_mid_y", "shoulder_width", "torso_drift",
+    "face_ok", "pose_ok",
+  ];
+  // หา index จากชื่อ ไม่ใช่เลขตายตัว -> สลับลำดับคอลัมน์ทีหลังแล้วไม่พัง
+  const COL = Object.fromEntries(CSV_COLUMNS.map((n, i) => [n, i]));
+
+  function logFrame(row) {
+    logRows.push(row);
+    refreshDownloadButton();
+  }
+
+  function buildCsv() {
+    const now = new Date();
+    const meta = [
+      `# neck_flexion_demo v2`,
+      `# >>> MAIN RESULT: column A = t_sec (seconds), column B = flexion_deg (degrees bent)`,
+      `# >>> rows where cp_captured=1 are the moments a checkpoint was held`,
+      `# >>> everything from column I onward is diagnostic data`,
+      `# exported_at,${now.toISOString()}`,
+      `# subject_id,${(subjectIdInput.value || "").replace(/[,\n]/g, " ")}`,
+      `# baseline_pitch_deg,${baselinePitch === null ? "" : baselinePitch.toFixed(3)}`,
+      `# sign_factor,${signFactor}`,
+      `# confirmed_max_deg,${confirmedMax.toFixed(2)}`,
+      `# cp_step_deg,${CFG.CP_STEP}`,
+      `# cp_list_deg,${CHECKPOINTS.join(" ")}`,
+      `# cp_captured,${cpResults.length}/${CHECKPOINTS.length}`,
+      // ผลแต่ละจุด: มุมจริงที่ค้างได้ และวินาทีที่ผ่านจุดนั้น
+      ...cpResults.map((r) => `# cp_${r.deg}deg,actual=${r.actual},t_sec=${r.t}`),
+      `# angle_limit_deg,${CFG.ANGLE_LIMIT}`,
+      `# angle_target_deg,${ANGLE_MAX}`,
+      `# sweep_complete,${sweepComplete}`,
+      `# hold_ms,${CFG.HOLD_MS}`,
+      `# baseline_dist_cm,${baselineDistCm === null ? "" : baselineDistCm.toFixed(1)}`,
+      `# dist_tol_cm,${distTolInput.value}`,
+      `# video_resolution,${video.videoWidth}x${video.videoHeight}`,
+      `# pose_enabled,${poseReady}`,
+      `# user_agent,${navigator.userAgent.replace(/[,\n]/g, " ")}`,
+      `# note,angle measured as head pitch relative to camera (not true CVA)`,
+    ];
+    // หัวตารางอยู่แถวแรกเสมอ metadata ไปต่อท้าย
+    // -> เปิด Excel มาเห็น t_sec / flexion_deg ทันทีโดยไม่ต้องเลื่อน
+    //    และ pandas ที่ใช้ comment="#" ก็ยังข้ามบรรทัดสรุปท้ายไฟล์ได้เหมือนเดิม
+    return CSV_COLUMNS.join(",") + "\n" +
+      logRows.map((r) => r.join(",")).join("\n") + "\n" +
+      meta.join("\n") + "\n";
+  }
+
+  function updateLogLine(extra = "") {
+    if (logRows.length === 0) { logLine.textContent = extra; return; }
+    const counted = logRows.reduce((n, r) => n + (r[COL.counted] === 1 ? 1 : 0), 0);
+    logLine.textContent = `บันทึกแล้ว ${logRows.length} เฟรม (นับ progress ${counted} เฟรม)` + (extra ? " — " + extra : "");
+  }
+
+  /* =====================================================================
+     SWEEP GAUGE
+     ===================================================================== */
+  function renderSweep(flexionNow, dwellP = 0) {
+    lastMarkerDeg = flexionNow;
+    sweepMarker.style.top = `${Math.min(1, Math.max(0, flexionNow / GAUGE_MAX)) * 100}%`;
+
+    const allDone = cpIndex >= CHECKPOINTS.length;
+    if (allDone) {
+      // ผ่านครบแล้วเติมเต็มแถบ — เดิมค้างที่ 83% (25/30) ทำให้ดูเหมือนยังไม่จบ
+      sweepFill.style.height = "100%";
+      sweepBand.style.height = "0%";
+      sweepBand.classList.remove("dwell");
+      sweepBandFill.style.height = "0%";
+      return;
+    }
+
+    // เติมถึง checkpoint ล่าสุดที่ผ่านแล้ว (กระโดดทีละขั้นตามระบบจุด)
+    const doneDeg = cpIndex > 0 ? CHECKPOINTS[cpIndex - 1] : 0;
+    sweepFill.style.height = `${Math.min(1, doneDeg / GAUGE_MAX) * 100}%`;
+
+    // กรอบเป้าหมายของ checkpoint ปัจจุบัน
+    const b = cpBandOf(cpIndex);
+    const top = Math.max(0, b.lo / GAUGE_MAX) * 100;
+    const bot = Math.min(1, (b.hi === Infinity ? GAUGE_MAX : b.hi) / GAUGE_MAX) * 100;
+    sweepBand.style.top = `${top}%`;
+    sweepBand.style.height = `${Math.max(0, bot - top)}%`;
+    sweepBand.classList.toggle("dwell", dwellStart !== null);
+    sweepBandFill.style.height = `${Math.min(1, Math.max(0, dwellP)) * 100}%`;
+  }
+
+  function resetSweep() {
+    confirmedMax = 0;
+    cpIndex = 0;
+    cpResults = [];
+    sweepComplete = false;
+    lastHintKey = "";
+    clearHold();
+    lastMarkerDeg = 0;
+    sweepFill.style.height = "0%";
+    sweepBand.style.height = "0%";
+    sweepBandFill.style.height = "0%";
+    sweepBand.classList.remove("dwell");
+    sweepMarker.style.top = "0%";
+    sweepLabel.classList.remove("paused");
+    sweepLabel.innerHTML = `ค้างแล้ว <b>0/${CHECKPOINTS.length}</b><br/>จุดแรก ${CHECKPOINTS[0]}°`;
+    renderTicks();
+  }
+
+  /* =====================================================================
+     โหลดโมเดล
+     ---------------------------------------------------------------------
+     Pose โหลดแยกและ "ล้มได้" โดยไม่ทำให้ทั้ง demo พัง — ถ้าโหลดไม่สำเร็จ
+     (เน็ตช้า / เครื่องไม่ไหว) ระบบจะทำงานต่อแบบ face-only
+     ===================================================================== */
+  const WASM_BASE = "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm";
+  const FACE_MODEL = "https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task";
+  const POSE_MODEL = "https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task";
+
+  // โมเดลมีขนาดรวมเกือบ 10MB และวัดจริงแล้วใช้เวลา ~10 วิ (face) บนเน็ตปกติ
+  // ถ้าไม่บอกอะไรเลยผู้ใช้จะนึกว่าเว็บค้าง จึงต้องรายงานความคืบหน้าเป็นขั้นๆ
+  // และต้องมี timeout ด้วย ไม่งั้นถ้า CDN โดนบล็อก (เน็ตมหาวิทยาลัย/ไฟร์วอลล์)
+  // หน้าจอจะค้างที่ "กำลังโหลด..." ตลอดกาลโดยไม่มี error ให้ดีบัก
+  function withTimeout(promise, ms, label) {
+    return Promise.race([
+      promise,
+      new Promise((_, reject) =>
+        setTimeout(() => reject(new Error(`${label} ใช้เวลานานเกิน ${ms / 1000} วิ — อาจโดนไฟร์วอลล์บล็อก CDN`)), ms)
+      ),
+    ]);
+  }
+
+  async function setupModels() {
+    setHint("กำลังโหลด runtime (WebAssembly)...");
+    const vision = await withTimeout(
+      FilesetResolver.forVisionTasks(WASM_BASE), 45000, "โหลด runtime"
+    );
+
+    setHint("กำลังโหลดโมเดลใบหน้า (~4MB) — ครั้งแรกอาจใช้เวลา 10-20 วินาที...");
+    faceLandmarker = await withTimeout(
+      FaceLandmarker.createFromOptions(vision, {
+        baseOptions: { modelAssetPath: FACE_MODEL, delegate: "GPU" },
+        outputFaceBlendshapes: false,
+        outputFacialTransformationMatrixes: true,
+        runningMode: "VIDEO",
+        numFaces: 1,
+      }),
+      60000, "โหลดโมเดลใบหน้า"
+    );
+
+    if (usePoseSelect.value === "1") {
+      setHint("กำลังโหลดโมเดลท่าทาง (Pose)...");
+      try {
+        poseLandmarker = await withTimeout(
+          PoseLandmarker.createFromOptions(vision, {
+            baseOptions: { modelAssetPath: POSE_MODEL, delegate: "GPU" },
+            runningMode: "VIDEO",
+            numPoses: 1,
+          }),
+          45000, "โหลดโมเดลท่าทาง"
+        );
+        poseReady = true;
+      } catch (err) {
+        // Pose เป็นของเสริม ล้มได้โดยไม่ทำให้ demo พัง -> ทำงานต่อแบบ face-only
+        console.warn("Pose landmarker ใช้ไม่ได้ ทำงานต่อแบบ face-only:", err);
+        poseReady = false;
+      }
+    }
+    setHint("กำลังขอสิทธิ์ใช้กล้อง...");
+  }
+
+  async function startCamera() {
+    setState(S.LOADING);
+    try {
+      await setupModels();
+      mediaStream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: "user", width: { ideal: 1280 }, height: { ideal: 720 } },
+        audio: false,
+      });
+      video.srcObject = mediaStream;
+      await video.play();
+
+      // ตั้งขนาด canvas และอัตราส่วน stage ให้ตรงกับกล้องจริง
+      // -> overlay ตรงกับภาพเป๊ะ และไม่มีส่วนที่โดน crop หายไป
+      overlay.width = video.videoWidth;
+      overlay.height = video.videoHeight;
+      stage.style.aspectRatio = `${video.videoWidth} / ${video.videoHeight}`;
+
+      running = true;
+      setState(S.READY);
+      scheduleFrame();
+    } catch (err) {
+      console.error(err);
+      setState(S.IDLE);
+      const isPerm = err.name === "NotAllowedError" || /permission/i.test(err.message);
+      const tip = isPerm
+        ? "เบราว์เซอร์ปฏิเสธสิทธิ์กล้อง — กดไอคอนกล้องบนแถบที่อยู่แล้วอนุญาต หรือเปิดผ่าน https:// / localhost"
+        : "ลองกดใหม่อีกครั้ง หรือปิด Pose ในตั้งค่าขั้นสูงถ้าเครื่องช้า";
+      setHint(`<b>เริ่มไม่สำเร็จ:</b> ${err.message}<br/><span style="font-size:13px">${tip}</span>`, "blocked");
+    }
+  }
+
+  // ของเดิมไม่เคย .stop() track เลย ไฟกล้องจึงติดค้างจนกว่าจะปิดแท็บ
+  function stopCamera() {
+    running = false;
+    if (mediaStream) {
+      mediaStream.getTracks().forEach((t) => t.stop());
+      mediaStream = null;
+    }
+    video.srcObject = null;
+    setState(S.IDLE);
+    setHint("ปิดกล้องแล้ว — ข้อมูลที่บันทึกไว้ยังดาวน์โหลดได้", logRows.length ? "done" : "");
+  }
+  window.addEventListener("pagehide", () => {
+    if (mediaStream) mediaStream.getTracks().forEach((t) => t.stop());
+  });
+
+  /* =====================================================================
+     FRAME LOOP
+     ---------------------------------------------------------------------
+     ของเดิมเรียก detectForVideo() ทุก requestAnimationFrame (60Hz) ทั้งที่
+     กล้องส่งภาพ 30fps => ประมวลผลเฟรมเดิมซ้ำ แล้วบันทึกลง CSV เป็น 2 แถว
+     คนละ timestamp ทำให้ข้อมูลดูเหมือนมี sample เยอะกว่าจริงเท่าตัว
+     ที่นี่ใช้ requestVideoFrameCallback (1 callback ต่อ 1 เฟรมวิดีโอจริง)
+     และ fallback เป็น rAF + เช็ค currentTime สำหรับเบราว์เซอร์ที่ไม่รองรับ
+     ===================================================================== */
+  function scheduleFrame() {
+    if (!running) return;
+    if (typeof video.requestVideoFrameCallback === "function") {
+      video.requestVideoFrameCallback(() => onFrame(true));
+    } else {
+      requestAnimationFrame(() => onFrame(false));
+    }
+  }
+  function onFrame(isVideoFrame) {
+    if (!running) return;
+    try {
+      if (video.readyState >= 2) {
+        if (isVideoFrame || video.currentTime !== lastVideoTime) {
+          lastVideoTime = video.currentTime;
+          processFrame();
+        }
+      }
+    } catch (err) {
+      console.error("frame error:", err);
+    }
+    scheduleFrame();
+  }
+
+  function processFrame() {
+    // MediaPipe ต้องการ timestamp ที่เพิ่มขึ้นเสมอ
+    let ts = performance.now();
+    if (ts <= lastDetectTs) ts = lastDetectTs + 1;
+    lastDetectTs = ts;
+    frameCounter++;
+
+    const vw = video.videoWidth, vh = video.videoHeight;
+    const faceRes = faceLandmarker.detectForVideo(video, ts);
+    octx.clearRect(0, 0, overlay.width, overlay.height);
+
+    // pose รันทุกๆ N เฟรมเพื่อลดภาระ แล้วใช้ค่าล่าสุดค้างไว้ระหว่างนั้น
+    if (poseReady && frameCounter % CFG.POSE_EVERY_N === 0) {
+      try {
+        const poseRes = poseLandmarker.detectForVideo(video, ts);
+        const lm = poseRes.landmarks && poseRes.landmarks[0];
+        if (lm && lm[POSE_L_SHOULDER] && lm[POSE_R_SHOULDER]) {
+          const l = lm[POSE_L_SHOULDER], r = lm[POSE_R_SHOULDER];
+          const width = Math.hypot(l.x - r.x, l.y - r.y);
+          lastPoseMetrics = width > 0.02
+            ? { midX: (l.x + r.x) / 2, midY: (l.y + r.y) / 2, width }
+            : null;
+        } else {
+          lastPoseMetrics = null;
+        }
+      } catch (err) {
+        lastPoseMetrics = null;
+      }
+    }
+
+    const hasFace =
+      faceRes.facialTransformationMatrixes?.length > 0 &&
+      faceRes.faceLandmarks?.length > 0;
+
+    if (!hasFace) {
+      pitchFilter.reset();
+      clearHold();
+      angleBadge.textContent = "ไม่พบใบหน้า";
+      angleBadge.classList.add("warn");
+      angleBadge.classList.remove("ok");
+      paintGate({ ok: false, code: "no_face", msg: "ไม่พบใบหน้า" }, false);
+      if (state === S.CALIB) restartCalibration("ไม่พบใบหน้า");
+      if (state === S.MEASURE) {
+        // clearHold() ถูกเรียกไปแล้วด้านบน -> การค้างที่ checkpoint เริ่มนับใหม่
+        sweepLabel.classList.add("paused");
+        sweepLabel.innerHTML = `หยุดชั่วคราว<br/><b>ไม่พบใบหน้า</b>`;
+        renderSweep(lastMarkerDeg, 0);   // ค้างเข็มไว้ที่เดิม ไม่กระชากกลับ 0
+        logFrame(emptyRow(ts, "no_face"));
+        updateLogLine();
+        // ต้องเช็ค timeout ตรงนี้ด้วย ไม่งั้นถ้าผู้ใช้เดินออกจากกล้องไปเลย
+        // session จะค้างอยู่ตลอดเพราะ tickMeasure() ไม่เคยถูกเรียก
+        const tSec = (ts - sessionStartMs) / 1000;
+        timerBadge.textContent = `${tSec.toFixed(1)} วิ`;
+        if (tSec > CFG.SESSION_TIMEOUT_SEC) finishSession("ครบเวลาที่กำหนด");
+      }
+      return;
+    }
+
+    const landmarks = faceRes.faceLandmarks[0];
+    const nose = landmarks[NOSE_IDX];
+    const m = faceRes.facialTransformationMatrixes[0].data;
+    const head = decomposeHeadPose(m);
+
+    const pitchFilt = pitchFilter.filter(head.pitch, ts);
+    const gate = evaluateGate(head, nose, lastPoseMetrics);
+    paintGate(gate, true);
+
+    // จุดที่ปลายจมูก สีตาม gate (เขียว=ใช้ได้ / แดง=เฟรมนี้ไม่ถูกนับ)
+    octx.beginPath();
+    octx.arc(nose.x * vw, nose.y * vh, 7, 0, Math.PI * 2);
+    octx.fillStyle = distanceColor;
+    octx.fill();
+    octx.lineWidth = 2;
+    octx.strokeStyle = "#ffffff";
+    octx.stroke();
+
+    // ---- แปลงเป็นมุมเทียบ baseline ----
+    const displayRaw = baselinePitch === null ? 0 : pitchFilt - baselinePitch;
+
+    /* ทิศทางการก้มแบบอัตโนมัติ (แทน checkbox "สลับเครื่องหมายมุม" ของเดิม)
+       v1 มีบั๊ก: baselinePitch ถูกเก็บ "หลัง" ใส่ flip แล้ว พอผู้ใช้ติ๊ก
+       checkbox ทีหลัง ค่าจะกลายเป็น -p - p = -2p ทั้งที่ไม่ได้ขยับหัวเลย
+       ที่นี่ไม่แตะ baseline อีกเลย แค่คูณ signFactor ตอนแสดงผล จึงปลอดภัย
+       แม้ผู้ใช้จะเปลี่ยนโหมดกลางคัน */
+    const mode = signModeSelect.value;
+    if (mode === "pos") { signFactor = 1; signLocked = true; }
+    else if (mode === "neg") { signFactor = -1; signLocked = true; }
+    else if (!signLocked && state === S.MEASURE && Math.abs(displayRaw) > CFG.AUTO_SIGN_DEG) {
+      const s = Math.sign(displayRaw);
+      // ต้องเบี่ยงไปทางเดิมติดกันหลายเฟรม กัน noise ล็อกผิดทิศ
+      if (s === signCandidate) signStreak++;
+      else { signCandidate = s; signStreak = 1; }
+      if (signStreak >= CFG.AUTO_SIGN_FRAMES) {
+        signFactor = s;
+        signLocked = true;
+      }
+    }
+
+    const flexionSigned = displayRaw * signFactor;  // + = ก้มลง
+    const flexion = Math.max(0, flexionSigned);     // เงยขึ้นไม่นับเป็น progress
+
+    // badge ใช้ flexionSigned (มีเครื่องหมาย) แทน abs ของเดิม เพื่อให้
+    // ตัวเลข/สีสอดคล้องกับสิ่งที่แถบกวาดมุมนับจริง
+    if (!warnState && flexionSigned > CFG.ANGLE_LIMIT) warnState = true;
+    else if (warnState && flexionSigned < CFG.ANGLE_LIMIT - CFG.ANGLE_HYSTERESIS) warnState = false;
+    angleBadge.textContent = baselinePitch === null
+      ? `pitch ${head.pitch.toFixed(1)}° | ${head.distCm.toFixed(0)} ซม.`
+      : `${flexionSigned.toFixed(1)}° | ${head.distCm.toFixed(0)} ซม.`;
+    angleBadge.classList.toggle("warn", warnState);
+    angleBadge.classList.toggle("ok", !warnState);
+
+    // ---- แยกตาม state ----
+    if (state === S.CALIB) {
+      tickCalibration(ts, head, gate, pitchFilt);
+    } else if (state === S.MEASURE) {
+      tickMeasure(ts, head, nose, gate, flexion, pitchFilt);
+    }
+  }
+
+  function emptyRow(ts, reason) {
+    const t = sessionStartMs === null ? 0 : (ts - sessionStartMs) / 1000;
+    // สร้างจากชื่อคอลัมน์ ไม่ใช่ลำดับตายตัว -> ยาวเท่ากับ CSV_COLUMNS เสมอ
+    const row = CSV_COLUMNS.map(() => "");
+    row[COL.t_sec] = t.toFixed(2);
+    row[COL.flexion_deg] = "";          // ไม่พบใบหน้า = ไม่มีค่ามุม (เว้นว่าง ไม่ใช่ 0)
+    row[COL.cp_captured] = 0;
+    row[COL.target_cp_deg] = cpIndex < CHECKPOINTS.length ? CHECKPOINTS[cpIndex] : "";
+    row[COL.confirmed_max_deg] = confirmedMax.toFixed(2);
+    row[COL.gate_ok] = 0;
+    row[COL.gate_reason] = reason;
+    row[COL.counted] = 0;
+    row[COL.face_ok] = 0;
+    row[COL.pose_ok] = 0;
+    return row;
+  }
+
+  /* =====================================================================
+     CALIBRATION — countdown 3-2-1 แล้วเก็บ baseline เป็น "ค่าเฉลี่ย"
+     ---------------------------------------------------------------------
+     ทำไมต้องมี countdown (ไม่ใช่แค่ความสวยงาม):
+     1) v1 เก็บ baseline จาก "เฟรมเดียว" ตอนกดปุ่ม ซึ่งรับ noise เต็มๆ
+     2) จังหวะที่กดปุ่มคือจังหวะที่ท่าทางแย่ที่สุด (เอื้อมมือไปเมาส์ ไหล่เอียง)
+        แล้วเราเอาเฟรมนั้นเป็น "ศูนย์" ของทุกอย่าง => ผิดตั้งแต่ต้น
+     countdown ทำให้ผู้ใช้ปล่อยมือและจัดท่าได้ก่อน แล้วเราเก็บค่าเฉลี่ย
+     จากช่วงท้าย CALIB_WINDOW_MS พร้อมเช็ค SD ว่านิ่งพอจริง
+     ===================================================================== */
+  function beginCalibration() {
+    calibStartMs = performance.now();
+    calibSamples = [];
+    pitchFilter.reset();
+    setState(S.CALIB);
+  }
+
+  function restartCalibration(reason) {
+    // เงื่อนไขหลุดกลางคัน -> เริ่มนับใหม่ ไม่ปล่อยให้ได้ baseline ที่ไม่น่าเชื่อถือ
+    calibStartMs = performance.now();
+    calibSamples = [];
+    showCountdown(CFG.CALIB_COUNT_SEC, reason, 0, { warn: true });
+  }
+
+  function tickCalibration(ts, head, gate, pitchFilt) {
+    if (!gate.ok) { restartCalibration(gate.msg); return; }
+
+    const elapsed = ts - calibStartMs;
+    const totalMs = CFG.CALIB_COUNT_SEC * 1000;
+
+    // เก็บ sample เฉพาะช่วงท้าย (ช่วงที่ผู้ใช้น่าจะนิ่งที่สุดแล้ว)
+    if (elapsed > totalMs - CFG.CALIB_WINDOW_MS) calibSamples.push({ p: pitchFilt, d: head.distCm });
+
+    const remain = Math.max(0, Math.ceil((totalMs - elapsed) / 1000));
+    showCountdown(remain || 1, "นั่งคอตรง มองตรงกล้อง", elapsed / totalMs);
+
+    if (elapsed >= totalMs) {
+      if (calibSamples.length < 5) { restartCalibration("เก็บค่าไม่พอ ลองใหม่"); return; }
+      const pitches = calibSamples.map((s) => s.p);
+      const mean = pitches.reduce((a, b) => a + b, 0) / pitches.length;
+      const sd = Math.sqrt(pitches.reduce((a, b) => a + (b - mean) ** 2, 0) / pitches.length);
+      if (sd > CFG.CALIB_MAX_SD) { restartCalibration(`ขยับเยอะเกิน (SD ${sd.toFixed(1)}°) นิ่งๆ อีกครั้ง`); return; }
+
+      baselinePitch = mean;
+      // เฉลี่ยระยะด้วยเหตุผลเดียวกับ pitch: เฟรมเดียวรับ noise เต็มๆ
+      baselineDistCm = calibSamples.reduce((a, b) => a + b.d, 0) / calibSamples.length;
+      baselineTorso = lastPoseMetrics ? { ...lastPoseMetrics } : null;
+      signLocked = signModeSelect.value !== "auto";
+      signCandidate = 0; signStreak = 0;
+      resetSweep();
+      logRows = [];
+      downloadedSinceLastRun = false;
+      sessionStartMs = ts;
+      hideCountdown();
+      setState(S.MEASURE);
+      updateLogLine(`baseline ${mean.toFixed(1)}° (SD ${sd.toFixed(2)}°)`);
+    }
+  }
+
+  /* =====================================================================
+     MEASURE
+     ===================================================================== */
+  // อัปเดตคำสั่งบนจอเฉพาะตอนข้อความเปลี่ยนจริง ไม่ใช่ทุกเฟรม
+  function setMeasureHint(key, html, kind) {
+    if (key === lastHintKey) return;
+    lastHintKey = key;
+    setHint(html, kind);
+  }
+
+  function tickMeasure(ts, head, nose, gate, flexion, pitchFilt) {
+    const tSec = (ts - sessionStartMs) / 1000;
+    timerBadge.textContent = `${tSec.toFixed(1)} วิ`;
+    timerBadge.classList.toggle("hot", tSec > CFG.SESSION_TIMEOUT_SEC * 0.8);
+
+    let counted = false, capturedNow = 0, justFinished = false;
+    let dwellProgress = 0;
+    const target = cpIndex < CHECKPOINTS.length ? CHECKPOINTS[cpIndex] : null;
+
+    if (!gate.ok) {
+      // เงื่อนไขหลุด -> ล้างการนับค้าง ต้องมาค้างใหม่ทั้งช่วง
+      clearHold();
+      sweepLabel.classList.add("paused");
+      sweepLabel.innerHTML = `หยุดชั่วคราว<br/><b>${gate.msg}</b>`;
+      showCountdown("!", gate.msg, 0, { hold: true, warn: true, smallNum: true });
+      setMeasureHint("gate:" + gate.code, `<b>${gate.msg}</b> — แก้ท่าแล้วระบบจะนับต่อเอง`, "blocked");
+    } else if (target === null) {
+      hideCountdown();
+    } else {
+      counted = true;
+      sweepLabel.classList.remove("paused");
+
+      if (inCpBand(flexion, cpIndex)) {
+        // อยู่ในแถบของ checkpoint -> จับเวลาค้าง
+        if (dwellStart === null) dwellStart = ts;
+        pushHold(ts, flexion);
+        const held = ts - dwellStart;
+        const p = Math.min(1, held / CFG.HOLD_MS);
+        dwellProgress = p;
+        showCountdown(
+          Math.max(0, (CFG.HOLD_MS - held) / 1000).toFixed(1),
+          `ค้างไว้ที่ ${cpRangeText(cpIndex)}`,
+          p,
+          { hold: true, smallNum: true }
+        );
+        setMeasureHint("hold:" + target, `ค้างไว้ในช่วง <b>${cpRangeText(cpIndex)}</b> จนวงแหวนเต็ม`);
+
+        if (p >= 1) {
+          // ยืนยันด้วย percentile เหมือนเดิม กัน noise ดันให้ผ่านทั้งที่ไม่ได้ค้างจริง
+          const sust = sustainedAngle(ts);
+          if (sust !== null && inCpBand(sust, cpIndex)) {
+            const actual = medianHold();
+            cpResults.push({ deg: target, actual: +actual.toFixed(2), t: +tSec.toFixed(2) });
+            confirmedMax = Math.max(confirmedMax, actual);
+            cpIndex++;
+            capturedNow = 1;
+            clearHold();
+            renderTicks();
+            lastHintKey = "";
+            if (cpIndex >= CHECKPOINTS.length) {
+              sweepComplete = true;
+              justFinished = true;
+            }
+          }
+        }
+      } else {
+        // ยังไม่ถึงแถบ -> ซ่อน countdown เพื่อให้เห็นป้ายมุมปัจจุบัน
+        clearHold();
+        hideCountdown();
+        const needDown = flexion < cpBandOf(cpIndex).lo;
+        setMeasureHint(
+          "goto:" + target + (needDown ? "d" : "u"),
+          needDown
+            ? `ก้มลงอีกให้ถึง <b>${target}°</b> แล้วค้างไว้`
+            : `ก้มลึกเกินช่วง <b>${cpRangeText(cpIndex)}</b> — เงยขึ้นมานิดนึงแล้วค้างไว้`
+        );
+      }
+
+      if (!justFinished) {
+        const nx = cpIndex < CHECKPOINTS.length ? `จุดถัดไป ${cpRangeText(cpIndex)}` : "ครบแล้ว";
+        sweepLabel.innerHTML = `ค้างแล้ว <b>${cpIndex}/${CHECKPOINTS.length}</b><br/>${nx}`;
+      }
+    }
+
+    renderSweep(flexion, dwellProgress);
+
+    const torso = lastPoseMetrics;
+    const drift = (baselineTorso && torso)
+      ? Math.hypot(torso.midX - baselineTorso.midX, torso.midY - baselineTorso.midY) / baselineTorso.width
+      : "";
+    logFrame([
+      tSec.toFixed(2),
+      flexion.toFixed(2),          // <- คอลัมน์หลักคู่กับเวลา
+      capturedNow,
+      target === null ? "" : target,
+      confirmedMax.toFixed(2),
+      gate.ok ? 1 : 0,
+      gate.code,
+      counted ? 1 : 0,
+      head.pitch.toFixed(3),
+      pitchFilt.toFixed(3),
+      head.yaw.toFixed(2),
+      head.roll.toFixed(2),
+      head.distCm.toFixed(2),
+      nose.x.toFixed(4),
+      nose.y.toFixed(4),
+      torso ? torso.midX.toFixed(4) : "",
+      torso ? torso.midY.toFixed(4) : "",
+      torso ? torso.width.toFixed(4) : "",
+      drift === "" ? "" : drift.toFixed(4),
+      1,
+      torso ? 1 : 0,
+    ]);
+    updateLogLine();
+
+    if (justFinished) { finishSession("ค้างครบทุกจุดแล้ว"); return; }
+    // timeout กันลืมกดจบ
+    if (tSec > CFG.SESSION_TIMEOUT_SEC) finishSession("ครบเวลาที่กำหนด");
+  }
+
+  function finishSession(reason) {
+    hideCountdown();
+    setState(S.DONE);
+    const n = cpResults.length, total = CHECKPOINTS.length;
+    sweepLabel.innerHTML = sweepComplete
+      ? `ครบทุกจุด ✓<br/><b>${n}/${total}</b>`
+      : `จบการวัด<br/><b>${n}/${total}</b> จุด`;
+    const reached = n > 0 ? CHECKPOINTS[n - 1] : 0;
+    const detail = n > 0
+      ? cpResults.map((r) => `${r.deg}° ที่ ${r.t}วิ`).join(" · ")
+      : "ยังไม่ผ่านจุดไหนเลย";
+    setHint(
+      `<b>จบการวัด (${reason})</b> — ค้างผ่าน <b>${n}/${total}</b> จุด ` +
+      `(ถึง <b>${reached}°</b>)<br/><span style="font-size:12.5px;color:var(--muted)">${detail}</span>`,
+      "done"
+    );
+    updateLogLine(reason);
+  }
+
+  /* =====================================================================
+     ปุ่มหลัก — หน้าที่เปลี่ยนตาม state
+     ===================================================================== */
+  btnPrimary.addEventListener("click", () => {
+    switch (state) {
+      case S.IDLE:
+        startCamera();
+        break;
+      case S.READY:
+        beginCalibration();
+        break;
+      case S.CALIB:
+        hideCountdown();
+        setState(S.READY);
+        break;
+      case S.MEASURE:
+        finishSession("ผู้ใช้กดจบเอง");
+        break;
+      case S.DONE:
+        // กันข้อมูลหาย: v1 กด "ตั้ง Baseline" พลาดทีเดียวคือล้าง log ทิ้งทันที
+        // ไม่มี confirm ไม่มี undo
+        if (!downloadedSinceLastRun && logRows.length > 0) {
+          if (!confirm("ยังไม่ได้ดาวน์โหลด CSV ของรอบนี้ ข้อมูลจะถูกล้าง ยืนยันหรือไม่?")) return;
+        }
+        baselinePitch = null;
+        baselineDistCm = null;
+        baselineTorso = null;
+        signLocked = false;
+        signFactor = 1;
+        signCandidate = 0; signStreak = 0;
+        logRows = [];
+        sessionStartMs = null;
+        resetSweep();
+        updateLogLine();
+        setState(S.READY);
+        break;
+    }
+  });
+
+  btnDownload.addEventListener("click", () => {
+    if (logRows.length === 0) return;
+    const blob = new Blob([buildCsv()], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    const sid = (subjectIdInput.value || "anon").replace(/[^\w-]/g, "");
+    const stamp = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
+    a.href = url;
+    a.download = `neck_flexion_${sid}_${stamp}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    downloadedSinceLastRun = true;
+  });
+
+  btnStopCam.addEventListener("click", stopCamera);
+
+  renderTicks();
+  setState(S.IDLE);
+</script>
+
+</body>
+</html>

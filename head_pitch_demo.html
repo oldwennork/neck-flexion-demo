@@ -587,6 +587,8 @@
     DIST_ABS_MIN_CM: 30,
     DIST_ABS_MAX_CM: 85,
     DIST_REL_TOL_CM: 10,
+    // สำรองไว้ใช้เฉพาะตอนอ่านขนาดวงรีบนจอไม่ได้ (เช่นเวทียังไม่ถูก layout)
+    // ปกติใช้วงรีนำสายตาที่วาดบนจอเป็นเกณฑ์ ดู noseGuideOffset()
     CENTER_X_TOL: 0.20,     // จมูกต้องอยู่ใน 0.5 ± tol ของความกว้างเฟรม
     CENTER_Y_TOL: 0.25,
     YAW_LIMIT_DEG: 12,      // หันซ้าย-ขวาเกินนี้ pitch จะไม่ใช่ flexion บริสุทธิ์
@@ -943,6 +945,30 @@
      รวมทุกเงื่อนไขไว้ที่เดียว แล้วคืนเหตุผลข้อแรกที่ไม่ผ่าน เพื่อเอาไป
      แสดงบนจอให้ผู้ใช้แก้ได้ตรงจุด (ของเดิมเช็คแค่ระยะอย่างเดียว)
      ===================================================================== */
+  /* ตำแหน่งจมูกเทียบวงรีนำสายตา "ตามที่เห็นบนจอ"
+     ต้องแปลงพิกัดเฟรมกล้อง (0-1) -> พิกัดบนเวทีเอง เพราะ
+     - video ใช้ object-fit: cover -> ภาพส่วนเกินถูก crop เมื่อเวทีถูกจำกัดความสูง
+     - video/canvas ถูก mirror (scaleX(-1)) แต่ SVG วงรีไม่ถูก mirror
+     - SVG ใช้ preserveAspectRatio="meet" -> ขนาดวงรีจริงไม่ใช่ 70% x 64% ของเวที
+     อ่านกรอบวงรีจาก getBoundingClientRect จึงตรงกับที่ผู้ใช้เห็นทุกขนาดจอ
+     คืนค่า { x, y, r } โดย x, y = ระยะจากศูนย์กลางหารด้วยรัศมี (r > 1 = นอกวง)
+     หรือ null ถ้ายังวัดขนาดไม่ได้ */
+  function noseGuideOffset(nose) {
+    const vw = video.videoWidth, vh = video.videoHeight;
+    const st = stage.getBoundingClientRect();
+    const el = distanceGuideEllipse.getBoundingClientRect();
+    if (!vw || !vh || !st.width || !el.width || !el.height) return null;
+    const scale = Math.max(st.width / vw, st.height / vh);
+    const dw = vw * scale, dh = vh * scale;
+    const px = st.width - ((st.width - dw) / 2 + nose.x * dw);   // mirror แกน x
+    const py = (st.height - dh) / 2 + nose.y * dh;
+    const cx = el.left - st.left + el.width / 2;
+    const cy = el.top - st.top + el.height / 2;
+    const x = (px - cx) / (el.width / 2);
+    const y = (py - cy) / (el.height / 2);
+    return { x, y, r: Math.hypot(x, y) };
+  }
+
   function evaluateGate(head, nose, torso) {
     // ชั้นที่ 1: ช่วงสัมบูรณ์กว้างๆ กันเคสผิดปกติจริงๆ
     if (head.distCm > CFG.DIST_ABS_MAX_CM) return { ok: false, code: "too_far", msg: "ไกลเกินไป เข้ามาใกล้อีกหน่อย" };
@@ -956,9 +982,19 @@
       if (delta < -tol) return { ok: false, code: "moved_near", msg: "เข้าใกล้กล้องกว่าเดิมมาก กลับท่าเดิม" };
     }
 
-    // จมูกต้องอยู่กลางเฟรม: หน้าที่อยู่ขอบภาพทำให้ค่า pitch เพี้ยนจาก perspective
-    if (Math.abs(nose.x - 0.5) > CFG.CENTER_X_TOL) return { ok: false, code: "off_center", msg: "ขยับให้หน้าอยู่กลางจอ (ซ้าย-ขวา)" };
-    if (Math.abs(nose.y - 0.5) > CFG.CENTER_Y_TOL) return { ok: false, code: "off_center", msg: "ขยับให้หน้าอยู่กลางจอ (บน-ล่าง)" };
+    // จมูกต้องอยู่ในวงรีนำสายตา: หน้าที่อยู่ขอบภาพทำให้ค่า pitch เพี้ยนจาก perspective
+    // เดิมเช็คด้วย ±20%/±25% ของเฟรมกล้อง ซึ่งกว้างกว่าวงรีที่วาดบนจอ (~±12%)
+    // ผู้ใช้เลยเห็นหน้าหลุดวงแต่ป้ายยังบอก "ระยะกำลังดี" -> ตอนนี้ใช้วงรีบนจอตรงๆ
+    const off = noseGuideOffset(nose);
+    if (off) {
+      if (off.r > 1) {
+        const side = Math.abs(off.x) >= Math.abs(off.y) ? "ซ้าย-ขวา" : "บน-ล่าง";
+        return { ok: false, code: "off_center", msg: `ขยับให้หน้าอยู่ในวงรี (${side})` };
+      }
+    } else {
+      if (Math.abs(nose.x - 0.5) > CFG.CENTER_X_TOL) return { ok: false, code: "off_center", msg: "ขยับให้หน้าอยู่กลางจอ (ซ้าย-ขวา)" };
+      if (Math.abs(nose.y - 0.5) > CFG.CENTER_Y_TOL) return { ok: false, code: "off_center", msg: "ขยับให้หน้าอยู่กลางจอ (บน-ล่าง)" };
+    }
 
     // หัน/เอียงหัวมาก -> pitch ไม่ใช่ flexion บริสุทธิ์อีกต่อไป
     if (Math.abs(head.yaw) > CFG.YAW_LIMIT_DEG) return { ok: false, code: "yaw", msg: "หันหน้าเข้ากล้องตรงๆ" };
@@ -1091,6 +1127,7 @@
       `# hold_ms,${CFG.HOLD_MS}`,
       `# baseline_dist_cm,${baselineDistCm === null ? "" : baselineDistCm.toFixed(1)}`,
       `# dist_tol_cm,${distTolInput.value}`,
+      `# center_gate,nose inside on-screen guide ellipse`,
       `# video_resolution,${video.videoWidth}x${video.videoHeight}`,
       `# pose_enabled,${poseReady}`,
       `# user_agent,${navigator.userAgent.replace(/[,\n]/g, " ")}`,

@@ -137,7 +137,10 @@
   .distance-badge {
     position: absolute; bottom: 14px; left: 50%; transform: translateX(-50%); z-index: 5;
     padding: 9px 20px; border-radius: var(--pill);
-    font-size: 12.5px; font-weight: 500; white-space: nowrap;
+    font-size: 12.5px; font-weight: 500; text-align: center;
+    /* เว้นที่ให้แถบมุมด้านขวาทั้งสองฝั่ง (ป้ายอยู่กึ่งกลาง) ข้อความยาวจะตัดบรรทัด
+       แทนที่จะวิ่งไปทับแถบมุมบนจอแคบ */
+    width: max-content; max-width: calc(100% - 2 * 92px);
     transition: color 0.3s var(--ease);
   }
   .distance-badge.neutral { color: var(--muted); }
@@ -427,6 +430,11 @@
       max-height: max(260px, calc(100svh - 250px));
     }
     button { flex: 1 1 42%; padding: 14px 16px; font-size: 14px; }
+    /* ปุ่มเด่นบนจอแคบ: ใช้ขนาดเท่าปุ่มอื่น (แสง pulse พอให้เด่นแล้ว)
+       padding/ฟอนต์แบบเดสก์ท็อปทำให้ "ดาวน์โหลด CSV" ตัดเป็น 2 บรรทัด
+       ปุ่มสูงขึ้นเกือบเท่าตัวจนตกขอบจอล่าง */
+    button.cta { padding: 14px 16px; font-size: 14.5px; white-space: nowrap; }
+    .distance-badge { max-width: calc(100% - 2 * 80px); padding: 8px 14px; border-radius: 18px; }
     .top-bar { right: 74px; top: 11px; left: 11px; gap: 6px; }
     .angle-badge { font-size: 15.5px; padding: 7px 13px; }
     .timer-badge { font-size: 10.5px; padding: 6px 11px; }
@@ -1707,6 +1715,9 @@
   function finishSession(reason) {
     hideCountdown();
     setState(S.DONE);
+    // จอมือถือเตี้ย: ข้อความสรุปหลายบรรทัดดันปุ่มดาวน์โหลดตกขอบล่าง
+    // เลื่อนให้เห็นปุ่ม ("nearest" = ไม่ขยับถ้าเห็นอยู่แล้ว)
+    requestAnimationFrame(() => btnDownload.scrollIntoView({ block: "nearest", behavior: "smooth" }));
     const n = cpResults.length, total = CHECKPOINTS.length;
     sweepLabel.innerHTML = sweepComplete
       ? `ครบทุกจุด ✓<br/><b>${n}/${total}</b>`

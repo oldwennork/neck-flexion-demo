@@ -102,7 +102,7 @@
   }
 
   /* กล่องลอยบนวิดีโอใช้ glass เหมือนกันหมด -> ดูเป็นระบบเดียว */
-  .angle-badge, .timer-badge, .distance-badge, .sweep-wrap, .cd-sub {
+  .angle-badge, .timer-badge, .distance-badge, .sweep-wrap {
     background: rgba(10,14,22,0.62);
     -webkit-backdrop-filter: var(--glass-blur);
     backdrop-filter: var(--glass-blur);
@@ -143,12 +143,11 @@
   .distance-badge.neutral { color: var(--muted); }
   .distance-badge.bad     { color: var(--warn); }
   .distance-badge.good    { color: var(--accent); }
-  /* ตอน countdown ขึ้น = โหมดโฟกัส: ซ่อนป้ายที่ข้อมูลซ้ำกับข้อความใต้วงแหวน
-     ("ค้างไว้ที่ 19°" มีมุมอยู่แล้ว / ตอนถูกบล็อกก็ใช้ข้อความเดียวกับป้ายระยะ)
-     ได้ผลพลอยได้คือบนเวทีเตี้ย (กล้อง 16:9 จอแคบ) วงแหวนไม่มีอะไรให้ชนอีก */
-  .stage.focus .distance-badge,
+  /* ตอน countdown ขึ้น = โหมดโฟกัส: ซ่อนแค่ป้ายบน (มุมอยู่ในวงแหวนแล้ว)
+     ป้ายระยะด้านล่าง "ไม่ซ่อน" เพราะเป็นที่เดียวที่ใช้แจ้งเตือนท่าทาง/ระยะ
+     คำเตือนจึงขึ้นตำแหน่งเดิมเสมอ ไม่กระโดดไปกลางจอตอนกำลังค้าง */
   .stage.focus .top-bar { opacity: 0; }
-  .distance-badge, .top-bar { transition: opacity 0.25s var(--ease); }
+  .top-bar { transition: opacity 0.25s var(--ease); }
 
   /* preserveAspectRatio="meet" -> ย่อ/ขยายเท่ากันทุกทิศ วงรีคงรูปหน้าคน
      (เดิมใช้ "none" พอเวทีเป็นแนวตั้งบนมือถือ วงรีถูกยืดเป็นเส้นยาวผอม) */
@@ -212,13 +211,6 @@
   }
   .cd-num.small { font-size: 27px; font-size: clamp(15px, 20cqh, 30px); letter-spacing: -0.02em; }
   .countdown.warn .cd-num { color: var(--warn); }
-  .cd-sub {
-    flex: none; max-width: 78%;
-    padding: 9px 19px; border-radius: var(--pill);
-    font-size: 12.5px; font-weight: 500; text-align: center;
-    background: rgba(6,9,15,0.85);
-  }
-  .countdown.warn .cd-sub { color: var(--warn); }
   @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
 
   /* ---- sweep gauge ------------------------------------------------------- */
@@ -338,6 +330,16 @@
     border: 1px solid var(--border); box-shadow: none;
   }
   button.secondary:hover:not(:disabled) { background: var(--surface-hi); transform: translateY(-2px); box-shadow: none; }
+  /* วัดเสร็จแล้วยังไม่ได้โหลด -> ปุ่มดาวน์โหลดกลายเป็นปุ่มหลัก + เรืองแสงเป็นจังหวะ
+     ส่วน "วัดอีกครั้ง" ถอยไปเป็นปุ่มรอง กันกดล้างข้อมูลก่อนโหลด */
+  button.cta {
+    padding: 16px 38px; font-size: 16px;
+    animation: ctaPulse 1.8s var(--ease) infinite;
+  }
+  @keyframes ctaPulse {
+    0%, 100% { box-shadow: 0 10px 30px -12px rgba(34,211,238,0.75), 0 0 0 0 rgba(34,211,238,0.55); }
+    50%      { box-shadow: 0 16px 38px -12px rgba(34,211,238,0.95), 0 0 0 9px rgba(34,211,238,0); }
+  }
   /* :disabled ต้องอยู่ท้ายสุด ไม่งั้น .secondary ที่ specificity เท่ากันจะชนะ */
   button:disabled {
     background: transparent; color: var(--muted-2);
@@ -431,7 +433,6 @@
     .sweep-wrap { width: 64px; right: 8px; padding: 11px 5px; }
     .sweep-tick-text { margin-right: 6px; font-size: 9px; }
     .countdown { padding: 46px 8px; }
-    .cd-sub { font-size: 11.5px; padding: 8px 15px; }
     .adv-grid { grid-template-columns: 1fr; }
     .step-hint { font-size: 13.5px; padding: 15px 17px; }
   }
@@ -477,7 +478,6 @@
         </svg>
         <div class="cd-num" id="cdNum">3</div>
       </div>
-      <div class="cd-sub" id="cdSub">นั่งคอตรง มองตรงกล้อง</div>
     </div>
 
     <div class="sweep-wrap" id="sweepWrap">
@@ -678,7 +678,6 @@
   const countdown = document.getElementById("countdown");
   const cdRingFg = document.getElementById("cdRingFg");
   const cdNum = document.getElementById("cdNum");
-  const cdSub = document.getElementById("cdSub");
 
   const sweepWrap = document.getElementById("sweepWrap");
   const sweepFill = document.getElementById("sweepFill");
@@ -864,7 +863,7 @@
     stepHint.innerHTML = `<span>${html}</span>`;
   }
 
-  function showCountdown(num, sub, progress, opts = {}) {
+  function showCountdown(num, progress, opts = {}) {
     countdown.hidden = false;
     // ใส่ class ที่ stage ตรงๆ (แทนที่จะให้ CSS ดักด้วย :has([hidden]))
     // เพราะสถานะ "โฟกัส" เป็นเรื่องของ state machine ไม่ใช่ผลข้างเคียงของ
@@ -874,7 +873,6 @@
     countdown.classList.toggle("warn", !!opts.warn);
     cdNum.textContent = num;
     cdNum.classList.toggle("small", !!opts.smallNum);
-    cdSub.textContent = sub;
     cdRingFg.style.strokeDashoffset = `${RING_C * (1 - Math.max(0, Math.min(1, progress)))}`;
   }
   function hideCountdown() {
@@ -911,7 +909,8 @@
         btnPrimary.disabled = false;
         sweepWrap.style.display = "none";
         timerBadge.hidden = true;
-        setHint("<b>ปล่อยมือจากเมาส์</b> แล้วนั่งคอตรงนิ่งๆ จนกว่าจะนับครบ", "blocked");
+        lastHintKey = "";
+        setMeasureHint("calib", CALIB_HINT, "blocked");
         break;
       case S.MEASURE:
         btnPrimary.textContent = "จบการวัด";
@@ -921,7 +920,7 @@
         setHint(`ก้มลงทีละขั้น แล้ว<b>ค้างไว้</b>ที่ทุกๆ ${CFG.CP_STEP}° จนวงแหวนเต็ม`);
         break;
       case S.DONE:
-        btnPrimary.textContent = "วัดคนถัดไป";
+        btnPrimary.textContent = "วัดอีกครั้ง";
         btnPrimary.disabled = false;
         timerBadge.hidden = true;
         hideCountdown();
@@ -935,6 +934,11 @@
   // จะดาวน์โหลดข้อมูลไม่ได้เลย ตอนนี้ปลดล็อกทันทีที่มีข้อมูลอย่างน้อย 1 แถว
   function refreshDownloadButton() {
     btnDownload.disabled = logRows.length === 0;
+    // จบรอบแล้วแต่ยังไม่ได้โหลด -> ดันปุ่มดาวน์โหลดขึ้นเป็นปุ่มเด่น
+    const emphasize = state === S.DONE && logRows.length > 0 && !downloadedSinceLastRun;
+    btnDownload.classList.toggle("cta", emphasize);
+    btnDownload.classList.toggle("secondary", !emphasize);
+    btnPrimary.classList.toggle("secondary", emphasize);
   }
 
   /* =====================================================================
@@ -1343,6 +1347,8 @@
       if (state === S.CALIB) restartCalibration("ไม่พบใบหน้า");
       if (state === S.MEASURE) {
         // clearHold() ถูกเรียกไปแล้วด้านบน -> การค้างที่ checkpoint เริ่มนับใหม่
+        hideCountdown();
+        setMeasureHint("gate:no_face", "<b>ไม่พบใบหน้า</b> — กลับเข้ากรอบแล้วระบบจะนับต่อเอง", "blocked");
         sweepLabel.classList.add("paused");
         sweepLabel.innerHTML = `หยุดชั่วคราว<br/><b>ไม่พบใบหน้า</b>`;
         renderSweep(lastMarkerDeg, 0);   // ค้างเข็มไว้ที่เดิม ไม่กระชากกลับ 0
@@ -1454,9 +1460,11 @@
 
   function restartCalibration(reason) {
     // เงื่อนไขหลุดกลางคัน -> เริ่มนับใหม่ ไม่ปล่อยให้ได้ baseline ที่ไม่น่าเชื่อถือ
+    // ข้อความเตือนไปอยู่ที่ป้ายระยะ (ล่าง) + คำแนะนำใต้เวที ไม่ซ้อนบนวงแหวน
     calibStartMs = performance.now();
     calibSamples = [];
-    showCountdown(CFG.CALIB_COUNT_SEC, reason, 0, { warn: true });
+    showCountdown(CFG.CALIB_COUNT_SEC, 0, { warn: true });
+    setMeasureHint("calib:" + reason, `<b>${reason}</b> — แก้แล้วระบบจะนับใหม่เอง`, "blocked");
   }
 
   function tickCalibration(ts, head, gate, pitchFilt) {
@@ -1469,7 +1477,8 @@
     if (elapsed > totalMs - CFG.CALIB_WINDOW_MS) calibSamples.push({ p: pitchFilt, d: head.distCm });
 
     const remain = Math.max(0, Math.ceil((totalMs - elapsed) / 1000));
-    showCountdown(remain || 1, "นั่งคอตรง มองตรงกล้อง", elapsed / totalMs);
+    showCountdown(remain || 1, elapsed / totalMs);
+    setMeasureHint("calib", CALIB_HINT, "blocked");
 
     if (elapsed >= totalMs) {
       if (calibSamples.length < 5) { restartCalibration("เก็บค่าไม่พอ ลองใหม่"); return; }
@@ -1498,6 +1507,7 @@
      MEASURE
      ===================================================================== */
   // อัปเดตคำสั่งบนจอเฉพาะตอนข้อความเปลี่ยนจริง ไม่ใช่ทุกเฟรม
+  const CALIB_HINT = "<b>ปล่อยมือจากเมาส์</b> แล้วนั่งคอตรงนิ่งๆ มองตรงกล้อง จนกว่าจะนับครบ";
   function setMeasureHint(key, html, kind) {
     if (key === lastHintKey) return;
     lastHintKey = key;
@@ -1518,7 +1528,7 @@
       clearHold();
       sweepLabel.classList.add("paused");
       sweepLabel.innerHTML = `หยุดชั่วคราว<br/><b>${gate.msg}</b>`;
-      showCountdown("!", gate.msg, 0, { hold: true, warn: true, smallNum: true });
+      hideCountdown();   // คำเตือนแสดงที่ป้ายระยะด้านล่างที่เดียว
       setMeasureHint("gate:" + gate.code, `<b>${gate.msg}</b> — แก้ท่าแล้วระบบจะนับต่อเอง`, "blocked");
     } else if (target === null) {
       hideCountdown();
@@ -1536,7 +1546,6 @@
         dwellProgress = p;
         showCountdown(
           Math.max(0, (CFG.HOLD_MS - held) / 1000).toFixed(1),
-          `ค้างไว้ที่ ${cpRangeText(cpIndex)}`,
           p,
           { hold: true, smallNum: true }
         );
@@ -1687,6 +1696,7 @@
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
     downloadedSinceLastRun = true;
+    refreshDownloadButton();
   });
 
   btnStopCam.addEventListener("click", stopCamera);

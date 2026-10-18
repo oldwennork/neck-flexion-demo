@@ -659,6 +659,8 @@
   }
 
   const NOSE_IDX = 1;
+  // landmark ที่ไม่อยู่บนแนวแว่น: ไว้คำนวณ pitch ทางเลือก (ดู landmarkPitch)
+  const FOREHEAD_IDX = 10, CHIN_IDX = 152;
   const POSE_L_SHOULDER = 11;
   const POSE_R_SHOULDER = 12;
 
@@ -796,6 +798,32 @@
   }
 
   /* =====================================================================
+     pitch ทางเลือก (ทดลอง — บันทึกลง CSV เท่านั้น ไม่ใช้วัดผล)
+     ---------------------------------------------------------------------
+     ข้อมูล 8 ต.ค.: ผู้ทดสอบ 1 คนใส่แว่นแล้วค่า pitch จาก transformation
+     matrix ได้น้อยกว่า Sensamove ~9% ทั้ง 2 ครั้ง (gain 0.907) matrix นี้ fit
+     จาก landmark ทั้งหน้ารวมรอบตาที่กรอบแว่นอาจรบกวน จึงเก็บอีก 2 ค่าที่
+     ไม่ใช้รอบตาเลย ไว้เทียบกับ Sensamove ในการเก็บข้อมูลรอบหน้า:
+       axis  = เวกเตอร์หน้าผาก(10) -> คาง(152)
+       lower = เวกเตอร์ปลายจมูก(1) -> คาง(152)  (ไม่ใช้หน้าผากเผื่อผมบัง)
+     มุม atan2(z, y) ของเวกเตอร์ใดๆ บนหน้า เปลี่ยนเท่ากับมุมก้มเมื่อหัวหมุน
+     รอบแกนซ้าย-ขวา จึงใช้ "ส่วนต่างจาก baseline" เป็นมุมก้มได้ (ก้ม = บวก)
+     แปลงเป็นหน่วยพิกเซลก่อน เพราะ x, z อิงความกว้างภาพ แต่ y อิงความสูง
+     ===================================================================== */
+  function landmarkPitch(landmarks, vw, vh) {
+    const ang = (a, b) => {
+      const dy = (b.y - a.y) * vh;
+      const dz = (b.z - a.z) * vw;
+      return Math.atan2(dz, dy) * RAD2DEG;
+    };
+    const chin = landmarks[CHIN_IDX];
+    return {
+      axis: ang(landmarks[FOREHEAD_IDX], chin),
+      lower: ang(landmarks[NOSE_IDX], chin),
+    };
+  }
+
+  /* =====================================================================
      STATE MACHINE
      ---------------------------------------------------------------------
      ของเดิมมี 4 ปุ่ม + 1 checkbox ซึ่ง "รีเซ็ตการกวาดมุม" เป็น subset ของ
@@ -826,6 +854,8 @@
   let baselinePitch = null;
   let baselineTorso = null; // {midX, midY, width}
   let baselineDistCm = null;
+  let baselineAlt = null;   // { axis, lower } ตอนตั้ง baseline ของ pitch ทางเลือก
+  let lastAlt = null;       // pitch ทางเลือกของเฟรมล่าสุด
   let calibStartMs = null;
   let calibSamples = [];    // {t, pitch}
 
@@ -1057,6 +1087,9 @@
     "nose_x", "nose_y",
     "shoulder_mid_x", "shoulder_mid_y", "shoulder_width", "torso_drift",
     "face_ok", "pose_ok",
+    // --- ทดลอง: pitch จาก landmark ที่ไม่ใช้รอบตา (ดู landmarkPitch) ---
+    // *_flex = ส่วนต่างจาก baseline (ก้ม = บวก) / pitch_* = ค่าดิบ ไม่ผ่าน filter
+    "flex_axis_deg", "flex_lower_deg", "pitch_axis_deg", "pitch_lower_deg",
   ];
   // หา index จากชื่อ ไม่ใช่เลขตายตัว -> สลับลำดับคอลัมน์ทีหลังแล้วไม่พัง
   const COL = Object.fromEntries(CSV_COLUMNS.map((n, i) => [n, i]));
@@ -1091,6 +1124,7 @@
       `# hold_ms,${CFG.HOLD_MS}`,
       `# baseline_dist_cm,${baselineDistCm === null ? "" : baselineDistCm.toFixed(1)}`,
       `# dist_tol_cm,${distTolInput.value}`,
+      `# alt_pitch,experimental: flex_axis = forehead(10)->chin(152) / flex_lower = nose(1)->chin(152) / not used for checkpoints`,
       `# video_resolution,${video.videoWidth}x${video.videoHeight}`,
       `# pose_enabled,${poseReady}`,
       `# user_agent,${navigator.userAgent.replace(/[,\n]/g, " ")}`,
@@ -1361,6 +1395,7 @@
     const nose = landmarks[NOSE_IDX];
     const m = faceRes.facialTransformationMatrixes[0].data;
     const head = decomposeHeadPose(m);
+    lastAlt = landmarkPitch(landmarks, vw, vh);
 
     const pitchFilt = pitchFilter.filter(head.pitch, ts);
     const gate = evaluateGate(head, nose, lastPoseMetrics);
@@ -1466,7 +1501,7 @@
     const totalMs = CFG.CALIB_COUNT_SEC * 1000;
 
     // เก็บ sample เฉพาะช่วงท้าย (ช่วงที่ผู้ใช้น่าจะนิ่งที่สุดแล้ว)
-    if (elapsed > totalMs - CFG.CALIB_WINDOW_MS) calibSamples.push({ p: pitchFilt, d: head.distCm });
+    if (elapsed > totalMs - CFG.CALIB_WINDOW_MS) calibSamples.push({ p: pitchFilt, d: head.distCm, alt: lastAlt });
 
     const remain = Math.max(0, Math.ceil((totalMs - elapsed) / 1000));
     showCountdown(remain || 1, "นั่งคอตรง มองตรงกล้อง", elapsed / totalMs);
@@ -1481,6 +1516,10 @@
       baselinePitch = mean;
       // เฉลี่ยระยะด้วยเหตุผลเดียวกับ pitch: เฟรมเดียวรับ noise เต็มๆ
       baselineDistCm = calibSamples.reduce((a, b) => a + b.d, 0) / calibSamples.length;
+      baselineAlt = {
+        axis: calibSamples.reduce((a, b) => a + b.alt.axis, 0) / calibSamples.length,
+        lower: calibSamples.reduce((a, b) => a + b.alt.lower, 0) / calibSamples.length,
+      };
       baselineTorso = lastPoseMetrics ? { ...lastPoseMetrics } : null;
       signLocked = signModeSelect.value !== "auto";
       signCandidate = 0; signStreak = 0;
@@ -1607,6 +1646,10 @@
       drift === "" ? "" : drift.toFixed(4),
       1,
       torso ? 1 : 0,
+      baselineAlt ? (lastAlt.axis - baselineAlt.axis).toFixed(2) : "",
+      baselineAlt ? (lastAlt.lower - baselineAlt.lower).toFixed(2) : "",
+      lastAlt.axis.toFixed(3),
+      lastAlt.lower.toFixed(3),
     ]);
     updateLogLine();
 
@@ -1660,6 +1703,7 @@
         }
         baselinePitch = null;
         baselineDistCm = null;
+        baselineAlt = null;
         baselineTorso = null;
         signLocked = false;
         signFactor = 1;

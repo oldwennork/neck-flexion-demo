@@ -440,6 +440,9 @@
     font-size: 11.5px; font-weight: 300; line-height: 1.7; color: var(--muted-2);
   }
 
+  /* ส่วนที่มีไว้สำหรับ admin/ทีมวิจัย ผู้ใช้ทั่วไปไม่เห็น */
+  body:not(.is-admin) .admin-only { display: none; }
+
   .help-body { margin-top: 16px; font-size: 13px; font-weight: 300; line-height: 1.85; }
   .help-body b { color: var(--text); font-weight: 600; }
   .help-body code {
@@ -681,7 +684,7 @@
   </details>
 
   <details class="help">
-    <summary>วิธีใช้ และข้อจำกัดที่ต้องรู้</summary>
+    <summary>วิธีใช้<span class="admin-only"> และข้อจำกัดที่ต้องรู้</span></summary>
     <div class="help-body">
       <p><b>ก่อนเริ่ม:</b> <b>ตั้งโทรศัพท์ไว้ให้นิ่ง</b> (ขาตั้ง หรือพิงของบนโต๊ะ) ให้กล้องหน้าอยู่ระดับใบหน้า
       ห่างประมาณ 1 ช่วงแขน — <b>อย่าถือโทรศัพท์ไว้ในมือระหว่างวัด</b> เพราะมุมที่วัดเทียบกับกล้อง
@@ -690,10 +693,10 @@
       <p><b>ขั้นตอน:</b> กดเปิดกล้อง → ขยับตัวให้ใบหน้าอยู่ในวงรีและป้ายล่างขึ้น “ระยะกำลังดี” →
       กด “ตั้ง Baseline” แล้ว<b>วางมือลง</b> นั่งคอตรงนิ่งๆ ระบบนับถอยหลัง 3 วิ แล้วเก็บท่านี้เป็นศูนย์ →
       ค่อยๆ ก้มลง แถบขวาจะขึ้นตามมุมที่<b>ค้างไว้ได้จริง</b> (ค้างแต่ละจุด ~2 วิ ถึงนับ) →
-      กด “จบการวัด” เมื่อไหร่ก็ได้ แล้วกด <b>“บันทึกลง Drive”</b> (ไม่กด = ไม่บันทึก)
-      — โหมดทดสอบของ admin จะดาวน์โหลดไฟล์ไว้ในเครื่องแทน</p>
+      กด “จบการวัด” เมื่อไหร่ก็ได้ แล้วกด <b>“บันทึกลง Drive”</b> (ไม่กด = ไม่บันทึก)<span class="admin-only">
+      — โหมดทดสอบของ admin จะดาวน์โหลดไฟล์ไว้ในเครื่องแทน</span></p>
 
-      <p><b>ข้อจำกัดที่ต้องรู้:</b> ค่าที่วัดคือ <b>มุมก้มของศีรษะเทียบกล้อง</b> ไม่ใช่ craniovertebral angle จริง
+      <p class="admin-only"><b>ข้อจำกัดที่ต้องรู้:</b> ค่าที่วัดคือ <b>มุมก้มของศีรษะเทียบกล้อง</b> ไม่ใช่ craniovertebral angle จริง
       (CVA ต้องถ่ายจาก<b>ด้านข้าง</b>) Pose Landmarker ที่เพิ่มเข้ามาใช้<b>เฝ้าไหล่</b>เพื่อจับว่าผู้ทดสอบขยับลำตัว
       หรือเอนเข้า-ออกระหว่างวัดหรือไม่ ไม่ได้ใช้คำนวณ CVA — ถ้าต้องการ CVA ให้ตั้งกล้องที่สองด้านข้าง 90°</p>
 
@@ -1600,17 +1603,15 @@
     if (!hasFace) {
       pitchFilter.reset();
       clearHold();
-      angleBadge.textContent = "ไม่พบใบหน้า";
+      angleBadge.textContent = "–.–°";   // คำว่า "ไม่พบใบหน้า" อยู่ที่ป้ายล่างแล้ว ไม่เขียนซ้ำ
       angleBadge.classList.add("warn");
       angleBadge.classList.remove("ok");
       paintGate({ ok: false, code: "no_face", msg: "ไม่พบใบหน้า" }, false);
-      if (state === S.CALIB) restartCalibration("ไม่พบใบหน้า");
+      if (state === S.CALIB) restartCalibration(null);
       if (state === S.MEASURE) {
         // clearHold() ถูกเรียกไปแล้วด้านบน -> การค้างที่ checkpoint เริ่มนับใหม่
         hideCountdown();
-        setMeasureHint("gate:no_face", "<b>ไม่พบใบหน้า</b> — กลับเข้ากรอบแล้วระบบจะนับต่อเอง", "blocked");
-        sweepLabel.classList.add("paused");
-        sweepLabel.innerHTML = `หยุดชั่วคราว<br/><b>ไม่พบใบหน้า</b>`;
+        showPaused();
         renderSweep(lastMarkerDeg, 0);   // ค้างเข็มไว้ที่เดิม ไม่กระชากกลับ 0
         logFrame(emptyRow(ts, "no_face"));
         updateLogLine();
@@ -1719,17 +1720,31 @@
     setState(S.CALIB);
   }
 
+  // reason = null เมื่อหลุดเพราะ gate/ไม่พบใบหน้า: ป้ายระยะใต้ภาพบอกสาเหตุอยู่แล้ว
+  // คำแนะนำจึงชี้ไปที่ป้ายนั้นแทนการเขียนข้อความเดิมซ้ำ (เดิมขึ้นทั้งป้าย + คำแนะนำ)
+  // ส่วนสาเหตุที่ป้ายไม่รู้ (ขยับเยอะเกิน / เก็บค่าไม่พอ) ยังเขียนในคำแนะนำตามเดิม
   function restartCalibration(reason) {
     // เงื่อนไขหลุดกลางคัน -> เริ่มนับใหม่ ไม่ปล่อยให้ได้ baseline ที่ไม่น่าเชื่อถือ
-    // ข้อความเตือนไปอยู่ที่ป้ายระยะ (ล่าง) + คำแนะนำใต้เวที ไม่ซ้อนบนวงแหวน
     calibStartMs = performance.now();
     calibSamples = [];
     showCountdown(CFG.CALIB_COUNT_SEC, 0, { warn: true });
-    setMeasureHint("calib:" + reason, `<b>${reason}</b> — แก้แล้วระบบจะนับใหม่เอง`, "blocked");
+    if (reason === null) {
+      setMeasureHint("calib:gate", "<b>หยุดนับ</b> — แก้ตามคำเตือนใต้ภาพ แล้วระบบจะนับใหม่เอง", "blocked");
+    } else {
+      setMeasureHint("calib:" + reason, `<b>${reason}</b> — ระบบนับใหม่ให้แล้ว`, "blocked");
+    }
+  }
+
+  // MEASURE หยุดนับเพราะ gate/ไม่พบใบหน้า: ข้อความเดียวกันทุกสาเหตุ
+  // (key เดียว -> สาเหตุสลับไปมาก็ไม่ทำให้คำแนะนำกะพริบ) สาเหตุจริงดูที่ป้ายใต้ภาพ
+  function showPaused() {
+    sweepLabel.classList.add("paused");
+    sweepLabel.innerHTML = "<b>หยุด</b><br/>ชั่วคราว";
+    setMeasureHint("paused", "<b>หยุดนับชั่วคราว</b> — แก้ตามคำเตือนใต้ภาพ แล้วระบบจะนับต่อเอง", "blocked");
   }
 
   function tickCalibration(ts, head, gate, pitchFilt) {
-    if (!gate.ok) { restartCalibration(gate.msg); return; }
+    if (!gate.ok) { restartCalibration(null); return; }
 
     const elapsed = ts - calibStartMs;
     const totalMs = CFG.CALIB_COUNT_SEC * 1000;
@@ -1794,10 +1809,8 @@
     if (!gate.ok) {
       // เงื่อนไขหลุด -> ล้างการนับค้าง ต้องมาค้างใหม่ทั้งช่วง
       clearHold();
-      sweepLabel.classList.add("paused");
-      sweepLabel.innerHTML = `หยุดชั่วคราว<br/><b>${gate.msg}</b>`;
-      hideCountdown();   // คำเตือนแสดงที่ป้ายระยะด้านล่างที่เดียว
-      setMeasureHint("gate:" + gate.code, `<b>${gate.msg}</b> — แก้ท่าแล้วระบบจะนับต่อเอง`, "blocked");
+      hideCountdown();
+      showPaused();
     } else if (target === null) {
       hideCountdown();
     } else {
@@ -2121,6 +2134,7 @@
     account = a;
     if (a.mode !== "test") resetAdvanced();
     advancedPanel.hidden = a.mode !== "test";
+    document.body.classList.toggle("is-admin", a.mode === "test");
     storeAccount(a);
     loginEl.hidden = true;
     sessionBar.hidden = false;

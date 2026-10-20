@@ -413,6 +413,63 @@
   .help-body p { margin: 0 0 14px; }
   .help-body p:last-child { margin-bottom: 0; }
 
+  /* ---- login ------------------------------------------------------------ */
+  .login {
+    position: fixed; inset: 0; z-index: 50;
+    display: flex; align-items: center; justify-content: center;
+    padding: 20px; overflow-y: auto;
+    background: rgba(6,8,13,0.86);
+    -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
+  }
+  .login[hidden] { display: none; }
+  .login-card {
+    width: 100%; max-width: 380px;
+    display: flex; flex-direction: column; gap: 14px;
+    padding: 30px 24px 20px;
+    background: rgba(14,18,27,0.92);
+    border: 1px solid var(--border); border-radius: var(--r-lg);
+    box-shadow: var(--shadow);
+  }
+  .login-card h2 { margin: 0; font-size: 20px; font-weight: 600; letter-spacing: -0.02em; text-align: center; }
+  .login-card h2 .ver { font-family: var(--mono); font-size: 13px; font-weight: 500; color: var(--accent); vertical-align: 2px; margin-left: 3px; }
+  .login-card .sub { margin: -6px 0 4px; text-align: center; color: var(--muted); font-size: 13px; }
+  .login-card form { display: flex; flex-direction: column; gap: 10px; margin: 0; }
+  .login-card label { font-size: 12px; color: var(--muted); }
+  .login-card input {
+    background: rgba(255,255,255,0.04); color: var(--text);
+    border: 1px solid var(--border); border-radius: var(--r-sm);
+    padding: 13px 15px;
+    font-size: 16px;   /* < 16px แล้ว iOS Safari ซูมหน้าจอตอนแตะช่อง */
+    font-family: var(--font);
+    transition: border-color 0.2s var(--ease), background 0.2s var(--ease);
+  }
+  .login-card input:focus { outline: none; border-color: var(--accent); background: rgba(34,211,238,0.06); }
+  .login-card button { flex: none; width: 100%; }
+  .login-err { margin: 0; min-height: 18px; text-align: center; font-size: 12.5px; color: var(--warn); }
+  .login-note { margin: 2px 0 0; text-align: center; font-size: 11.5px; font-weight: 300; line-height: 1.7; color: var(--muted-2); }
+  .login-divider { height: 1px; background: var(--border-soft); margin: 2px 0; }
+  .admin-box[hidden] { display: none; }
+
+  /* ปุ่มแบบลิงก์ (ไม่ใช่การกระทำหลัก) */
+  button.link {
+    background: none; border: none; box-shadow: none;
+    color: var(--muted); font-size: 12.5px; font-weight: 500;
+    padding: 6px 8px; text-decoration: underline; text-underline-offset: 3px;
+  }
+  button.link:hover:not(:disabled) { color: var(--text); transform: none; box-shadow: none; }
+  button.link[hidden] { display: none; }
+
+  /* ---- แถบผู้ใช้ด้านบน ---------------------------------------------------- */
+  .session-bar {
+    display: flex; align-items: center; justify-content: space-between; gap: 10px;
+    font-size: 13px; color: var(--muted);
+  }
+  .session-bar[hidden] { display: none; }
+  .session-who b { color: var(--text); font-weight: 600; }
+  .session-who.test b { color: var(--amber); }
+  .session-bar button { flex: none; padding: 8px 15px; font-size: 12.5px; }
+  .save-fallback { display: flex; justify-content: center; margin-top: -8px; }
+
   @media (max-width: 620px) {
     header { padding: 16px 16px 2px; }
     header h1 { font-size: 17px; margin-bottom: 4px; }
@@ -420,14 +477,14 @@
     header p .tech { display: none; }
     header p { font-size: 11px; }
     .wrap { padding: 14px 14px 36px; gap: 12px; }
-    /* ความสูงเวที = จอ - (หัวเว็บ + คำสั่ง 2 บรรทัด + ปุ่ม + ช่องไฟ ≈ 250px)
+    /* ความสูงเวที = จอ - (หัวเว็บ + แถบผู้ใช้ + คำสั่ง 2 บรรทัด + ปุ่ม + ช่องไฟ ≈ 305px)
        ปุ่ม "ตั้ง Baseline" จึงอยู่ในจอเสมอโดยไม่ต้องเลื่อน
        ใช้ svh = ความสูงจอตอนแถบเครื่องมือ Safari / in-app browser แสดงอยู่
        max(260px, …) กันไม่ให้หดจนใช้ไม่ได้บนจอที่เตี้ยมาก */
     .stage {
       border-radius: var(--r-md);
-      max-height: max(260px, calc(100vh - 250px));
-      max-height: max(260px, calc(100svh - 250px));
+      max-height: max(260px, calc(100vh - 305px));
+      max-height: max(260px, calc(100svh - 305px));
     }
     button { flex: 1 1 42%; padding: 14px 16px; font-size: 14px; }
     /* ปุ่มเด่นบนจอแคบ: ใช้ขนาดเท่าปุ่มอื่น (แสง pulse พอให้เด่นแล้ว)
@@ -453,12 +510,50 @@
 </head>
 <body>
 
+<!-- หน้า login: ผู้ใช้ทั่วไปใส่ชื่อเล่น -> ผลบันทึกลง Google Drive
+     admin ใส่รหัส -> โหมดทดสอบ บันทึกในเครื่องเท่านั้น -->
+<div class="login" id="login">
+  <div class="login-card">
+    <h2>Neck Flexion Demo <span class="ver">v2</span></h2>
+    <p class="sub">วัดมุมก้มคอผ่านกล้องหน้า</p>
+
+    <form id="loginForm" autocomplete="off" onsubmit="return false">
+      <label for="nickInput">ชื่อเล่น</label>
+      <input type="text" id="nickInput" maxlength="30" placeholder="เช่น นัมคิง" enterkeyhint="go" />
+      <p class="login-err" id="loginErr"></p>
+      <button type="submit" id="btnLogin" disabled>เริ่มใช้งาน</button>
+    </form>
+
+    <p class="login-note">ระบบไม่ส่งภาพจากกล้องออกจากเครื่อง ผลการวัด (ตัวเลขมุม) จะถูกบันทึกลง
+      Google Drive ของทีมวิจัยพร้อมชื่อเล่นที่กรอก</p>
+
+    <div class="login-divider"></div>
+    <button type="button" class="link" id="btnAdminToggle">ทดสอบระบบ (admin)</button>
+    <form class="admin-box" id="adminForm" autocomplete="off" onsubmit="return false" hidden>
+      <label for="adminCode">รหัส admin</label>
+      <input type="password" id="adminCode" enterkeyhint="go" />
+      <p class="login-err" id="adminErr"></p>
+      <button type="submit" class="secondary" id="btnAdminLogin" disabled>เข้าโหมดทดสอบ</button>
+    </form>
+  </div>
+</div>
+<script>
+  // module หลักต้องรอโหลด MediaPipe จาก CDN ก่อนถึงจะรัน
+  // คนที่ login ค้างไว้แล้วจึงไม่ควรเห็นหน้า login แวบขึ้นมาระหว่างรอ
+  try { if (localStorage.getItem("nf_account")) document.getElementById("login").hidden = true; } catch (_) {}
+</script>
+
 <header>
   <h1>Neck Flexion Demo <span class="ver">v2</span></h1>
   <p><span class="tech">MediaPipe Face + Pose Landmarker — </span>ประมวลผลบนเครื่อง ไม่มีการส่งภาพออกนอกเบราว์เซอร์</p>
 </header>
 
 <div class="wrap">
+
+  <div class="session-bar" id="sessionBar" hidden>
+    <span class="session-who" id="sessionWho"></span>
+    <button type="button" id="btnLogout" class="secondary">ออกจากระบบ</button>
+  </div>
 
   <div class="stage" id="stage">
     <video id="video" autoplay playsinline muted></video>
@@ -510,13 +605,14 @@
   </div>
 
   <div class="log-line" id="logLine"></div>
+  <!-- โผล่เฉพาะตอนส่งเข้า Drive ไม่สำเร็จ -->
+  <div class="save-fallback">
+    <button type="button" class="link" id="btnLocalFallback" hidden>ดาวน์โหลดไว้ในเครื่องแทน</button>
+  </div>
 
   <details class="advanced">
-    <summary>ตั้งค่าขั้นสูง / ข้อมูลผู้ทดสอบ</summary>
+    <summary>ตั้งค่าขั้นสูง</summary>
     <div class="adv-grid">
-      <label>รหัสผู้ทดสอบ (ลงใน CSV)
-        <input type="text" id="subjectId" placeholder="เช่น S01" autocomplete="off" />
-      </label>
       <label>ทิศทางการก้ม
         <select id="signMode">
           <option value="auto">อัตโนมัติ (แนะนำ)</option>
@@ -550,7 +646,8 @@
       <p><b>ขั้นตอน:</b> เปิดกล้อง → ขยับให้ป้ายล่างขึ้น “ระยะกำลังดี” → กดตั้ง Baseline แล้ว
       <b>ปล่อยมือจากเมาส์</b> ระบบนับถอยหลัง 3 วิ แล้วเก็บค่าเฉลี่ยเป็นศูนย์ → ค่อยๆ ก้มลง
       แถบขวาจะขึ้นตามมุมที่ <b>ค้างไว้ได้จริง</b> (ต้องค้างมุมนั้น ~2 วิ ถึงนับ) →
-      กด “จบการวัด” เมื่อไหร่ก็ได้แล้วดาวน์โหลด CSV</p>
+      กด “จบการวัด” เมื่อไหร่ก็ได้ ระบบบันทึกผลลง Google Drive ให้อัตโนมัติ
+      (โหมดทดสอบของ admin จะดาวน์โหลดไฟล์ไว้ในเครื่องแทน)</p>
 
       <p><b>ข้อจำกัดที่ต้องรู้:</b> ค่าที่วัดคือ <b>มุมก้มของศีรษะเทียบกล้อง</b> ไม่ใช่ craniovertebral angle จริง
       (CVA ต้องถ่ายจาก<b>ด้านข้าง</b>) Pose Landmarker ที่เพิ่มเข้ามาใช้<b>เฝ้าไหล่</b>เพื่อจับว่าผู้ทดสอบขยับลำตัว
@@ -706,7 +803,18 @@
   const btnStopCam = document.getElementById("btnStopCam");
   const logLine = document.getElementById("logLine");
 
-  const subjectIdInput = document.getElementById("subjectId");
+  const loginEl = document.getElementById("login");
+  const loginForm = document.getElementById("loginForm");
+  const nickInput = document.getElementById("nickInput");
+  const loginErr = document.getElementById("loginErr");
+  const btnAdminToggle = document.getElementById("btnAdminToggle");
+  const adminForm = document.getElementById("adminForm");
+  const adminCodeInput = document.getElementById("adminCode");
+  const adminErr = document.getElementById("adminErr");
+  const sessionBar = document.getElementById("sessionBar");
+  const sessionWho = document.getElementById("sessionWho");
+  const btnLogout = document.getElementById("btnLogout");
+  const btnLocalFallback = document.getElementById("btnLocalFallback");
   const signModeSelect = document.getElementById("signMode");
   const distTolInput = document.getElementById("distTol");
   const usePoseSelect = document.getElementById("usePose");
@@ -888,7 +996,11 @@
   let sessionStartMs = null;
   let logRows = [];
   let lastPoseMetrics = null;
-  let downloadedSinceLastRun = true;
+  let savedThisRun = true;      // ข้อมูลรอบนี้ถูกเก็บแล้ว (Drive หรือในเครื่อง) -> ไม่ต้องเตือนก่อนล้าง
+  let savedToDrive = false;
+  let saving = false;
+  let saveError = "";
+  let finishedAt = null;        // เวลาจบรอบ ใช้ตั้งชื่อไฟล์ (ลองส่งซ้ำได้ชื่อเดิม)
   let distanceColor = "#64748B";
   let warnState = false;
 
@@ -972,13 +1084,27 @@
   // แก้บั๊กสำคัญของ v1: เดิมปุ่มดาวน์โหลดถูกปลดล็อกใน stopLogging() เท่านั้น
   // ซึ่งถูกเรียกตอน "กวาดครบ 25°" อย่างเดียว => คนที่ ROM จำกัด (เคสที่สำคัญที่สุด)
   // จะดาวน์โหลดข้อมูลไม่ได้เลย ตอนนี้ปลดล็อกทันทีที่มีข้อมูลอย่างน้อย 1 แถว
+  // โหมด Drive: ปิดปุ่มระหว่างวัด (จบรอบแล้วระบบส่งให้เอง) กันไฟล์ครึ่งรอบซ้ำซ้อน
+  // คนที่ ROM จำกัดยังกด "จบการวัด" แล้วได้ไฟล์เหมือนเดิม
   function refreshDownloadButton() {
-    btnDownload.disabled = logRows.length === 0;
-    // จบรอบแล้วแต่ยังไม่ได้โหลด -> ดันปุ่มดาวน์โหลดขึ้นเป็นปุ่มเด่น
-    const emphasize = state === S.DONE && logRows.length > 0 && !downloadedSinceLastRun;
+    const drive = usesDrive();
+    let label = "ดาวน์โหลด CSV";
+    let disabled = logRows.length === 0;
+    if (drive) {
+      if (saving) { label = "กำลังบันทึก…"; disabled = true; }
+      else if (savedToDrive) { label = "บันทึกลง Drive แล้ว ✓"; disabled = true; }
+      else if (saveError) label = "ลองบันทึกอีกครั้ง";
+      else label = "บันทึกลง Drive";
+      if (state === S.MEASURE) disabled = true;
+    }
+    btnDownload.textContent = label;
+    btnDownload.disabled = disabled;
+    // จบรอบแล้วแต่ยังไม่ได้บันทึก -> ดันปุ่มขึ้นเป็นปุ่มเด่น
+    const emphasize = state === S.DONE && logRows.length > 0 && !savedThisRun && !saving;
     btnDownload.classList.toggle("cta", emphasize);
     btnDownload.classList.toggle("secondary", !emphasize);
     btnPrimary.classList.toggle("secondary", emphasize);
+    btnLocalFallback.hidden = !(drive && saveError && !savedToDrive && logRows.length > 0);
   }
 
   /* =====================================================================
@@ -1155,7 +1281,8 @@
       `# >>> rows where cp_captured=1 are the moments a checkpoint was held`,
       `# >>> everything from column I onward is diagnostic data`,
       `# exported_at,${now.toISOString()}`,
-      `# subject_id,${(subjectIdInput.value || "").replace(/[,\n]/g, " ")}`,
+      `# subject_id,${account ? account.nick.replace(/[,\n]/g, " ") : ""}`,
+      `# mode,${account ? account.mode : ""}`,
       `# baseline_pitch_deg,${baselinePitch === null ? "" : baselinePitch.toFixed(3)}`,
       `# sign_factor,${signFactor}`,
       `# confirmed_max_deg,${confirmedMax.toFixed(2)}`,
@@ -1579,7 +1706,10 @@
       signCandidate = 0; signStreak = 0;
       resetSweep();
       logRows = [];
-      downloadedSinceLastRun = false;
+      savedThisRun = false;
+      savedToDrive = false;
+      saveError = "";
+      finishedAt = null;
       sessionStartMs = ts;
       hideCountdown();
       setState(S.MEASURE);
@@ -1718,6 +1848,8 @@
     // จอมือถือเตี้ย: ข้อความสรุปหลายบรรทัดดันปุ่มดาวน์โหลดตกขอบล่าง
     // เลื่อนให้เห็นปุ่ม ("nearest" = ไม่ขยับถ้าเห็นอยู่แล้ว)
     requestAnimationFrame(() => btnDownload.scrollIntoView({ block: "nearest", behavior: "smooth" }));
+    finishedAt = new Date();
+    if (usesDrive() && logRows.length > 0) saveCsv();
     const n = cpResults.length, total = CHECKPOINTS.length;
     sweepLabel.innerHTML = sweepComplete
       ? `ครบทุกจุด ✓<br/><b>${n}/${total}</b>`
@@ -1755,46 +1887,250 @@
       case S.DONE:
         // กันข้อมูลหาย: v1 กด "ตั้ง Baseline" พลาดทีเดียวคือล้าง log ทิ้งทันที
         // ไม่มี confirm ไม่มี undo
-        if (!downloadedSinceLastRun && logRows.length > 0) {
-          if (!confirm("ยังไม่ได้ดาวน์โหลด CSV ของรอบนี้ ข้อมูลจะถูกล้าง ยืนยันหรือไม่?")) return;
-        }
-        baselinePitch = null;
-        baselineDistCm = null;
-        baselineAlt = null;
-        baselineTorso = null;
-        signLocked = false;
-        signFactor = 1;
-        signCandidate = 0; signStreak = 0;
-        logRows = [];
-        sessionStartMs = null;
-        resetSweep();
-        updateLogLine();
+        if (!confirmDiscard()) return;
+        resetMeasurement();
         setState(S.READY);
         break;
     }
   });
 
-  btnDownload.addEventListener("click", () => {
-    if (logRows.length === 0) return;
-    const blob = new Blob([buildCsv()], { type: "text/csv;charset=utf-8" });
+  function confirmDiscard() {
+    if (savedThisRun || logRows.length === 0) return true;
+    return confirm("ยังไม่ได้บันทึกผลของรอบนี้ ข้อมูลจะถูกล้าง ยืนยันหรือไม่?");
+  }
+
+  function resetMeasurement() {
+    baselinePitch = null;
+    baselineDistCm = null;
+    baselineAlt = null;
+    baselineTorso = null;
+    signLocked = false;
+    signFactor = 1;
+    signCandidate = 0; signStreak = 0;
+    logRows = [];
+    sessionStartMs = null;
+    savedThisRun = true;
+    savedToDrive = false;
+    saveError = "";
+    finishedAt = null;
+    resetSweep();
+    updateLogLine();
+  }
+
+  /* =====================================================================
+     บันทึกผล — Google Drive (ผู้ใช้ทั่วไป) / ดาวน์โหลดในเครื่อง (โหมดทดสอบ)
+     ---------------------------------------------------------------------
+     ส่งไปที่ Google Apps Script web app ของทีม (โค้ด + วิธีตั้งค่าอยู่ใน
+     apps_script/) ซึ่งเขียนไฟล์ลงโฟลเดอร์ใน Drive ของเจ้าของสคริปต์
+     ผู้ใช้จึงไม่ต้อง login Google  ถ้ายังไม่ได้ใส่ URL จะดาวน์โหลดในเครื่องแทน
+     Content-Type text/plain เพื่อไม่ให้เบราว์เซอร์ส่ง CORS preflight
+     (Apps Script ตอบ OPTIONS ไม่ได้)
+     ===================================================================== */
+  const DRIVE_ENDPOINT = "";
+  const UPLOAD_TIMEOUT_MS = 20000;
+
+  function usesDrive() {
+    return !!(account && account.mode === "user" && DRIVE_ENDPOINT);
+  }
+
+  function stampLocal(d) {
+    const p = (n) => String(n).padStart(2, "0");
+    return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}_${p(d.getHours())}-${p(d.getMinutes())}-${p(d.getSeconds())}`;
+  }
+
+  // ชื่อเล่น_วันที่_เวลา.csv  (โหมดทดสอบใช้ test_ นำหน้าแทนชื่อ)
+  function csvFilename() {
+    const who = account && account.mode === "user" ? account.nick : "test";
+    return `${who}_${stampLocal(finishedAt || new Date())}.csv`;
+  }
+
+  function downloadLocal(csv, filename) {
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
-    const sid = (subjectIdInput.value || "anon").replace(/[^\w-]/g, "");
-    const stamp = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
     a.href = url;
-    a.download = `neck_flexion_${sid}_${stamp}.csv`;
+    a.download = filename;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
-    downloadedSinceLastRun = true;
+  }
+
+  async function uploadToDrive(filename, csv) {
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), UPLOAD_TIMEOUT_MS);
+    try {
+      const res = await fetch(DRIVE_ENDPOINT, {
+        method: "POST",
+        headers: { "Content-Type": "text/plain;charset=utf-8" },
+        body: JSON.stringify({ app: "neck_flexion_demo", filename, csv }),
+        signal: ctrl.signal,
+      });
+      const data = await res.json();
+      if (!data.ok) throw new Error(data.error || "server error");
+      return data;
+    } catch (err) {
+      if (err.name === "AbortError") throw new Error("หมดเวลา เน็ตช้าหรือไม่มีสัญญาณ");
+      throw err;
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+
+  async function saveCsv() {
+    if (logRows.length === 0 || saving) return;
+    const csv = buildCsv();
+    const filename = csvFilename();
+
+    if (!usesDrive()) {
+      downloadLocal(csv, filename);
+      savedThisRun = true;
+      updateLogLine(`ดาวน์โหลดแล้ว: ${filename}`);
+      refreshDownloadButton();
+      return;
+    }
+
+    saving = true;
+    saveError = "";
     refreshDownloadButton();
+    updateLogLine("กำลังบันทึกลง Google Drive…");
+    try {
+      await uploadToDrive(filename, csv);
+      savedThisRun = true;
+      savedToDrive = true;
+      updateLogLine(`บันทึกลง Drive แล้ว: ${filename}`);
+    } catch (err) {
+      saveError = String((err && err.message) || err);
+      updateLogLine(`บันทึกลง Drive ไม่สำเร็จ (${saveError}) — กดลองอีกครั้ง หรือดาวน์โหลดไว้ในเครื่อง`);
+    } finally {
+      saving = false;
+      refreshDownloadButton();
+    }
+  }
+
+  btnDownload.addEventListener("click", saveCsv);
+
+  btnLocalFallback.addEventListener("click", () => {
+    if (logRows.length === 0) return;
+    const filename = csvFilename();
+    downloadLocal(buildCsv(), filename);
+    savedThisRun = true;
+    updateLogLine(`ดาวน์โหลดไว้ในเครื่องแล้ว: ${filename} (ยังไม่ได้อยู่ใน Drive)`);
+    refreshDownloadButton();
+  });
+
+  /* =====================================================================
+     LOGIN — ชื่อเล่น (ผู้ใช้ทั่วไป) / รหัส admin (โหมดทดสอบ)
+     ---------------------------------------------------------------------
+     ไม่ใช่ระบบความปลอดภัย: เป็นแค่ประตูกันผู้ทดสอบเข้าโหมดทดสอบโดยไม่ตั้งใจ
+     เก็บรหัสเป็น SHA-256 จะได้ไม่มีรหัสตัวจริงในโค้ดที่เปิดสาธารณะ
+     จำการ login ไว้ในเบราว์เซอร์ (รีเฟรชแล้วไม่ต้องกรอกใหม่) จนกด "ออกจากระบบ"
+     ===================================================================== */
+  const ADMIN_CODE_SHA256 = "2cc36fc50b0fadc92aea36860a85fd78a06bd737714a2052bf68fb0c8f785efe";
+  const ACCOUNT_KEY = "nf_account";
+  let account = null;   // { mode: "user" | "test", nick }
+
+  // ตัดอักขระที่ใช้ในชื่อไฟล์ไม่ได้ / ทำให้ CSV เพี้ยน ภาษาไทยใช้ได้ปกติ
+  function cleanNick(raw) {
+    return raw.trim().replace(/[\\/:*?"<>|#%,\s]+/g, "_").replace(/^_+|_+$/g, "").slice(0, 30);
+  }
+
+  async function sha256Hex(text) {
+    const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text));
+    return [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, "0")).join("");
+  }
+
+  function storeAccount(a) {
+    try {
+      if (a) localStorage.setItem(ACCOUNT_KEY, JSON.stringify(a));
+      else localStorage.removeItem(ACCOUNT_KEY);
+    } catch (_) { /* private mode ฯลฯ — แค่ไม่จำ login */ }
+  }
+
+  function loadAccount() {
+    try {
+      const a = JSON.parse(localStorage.getItem(ACCOUNT_KEY) || "null");
+      if (a && (a.mode === "user" || a.mode === "test") && typeof a.nick === "string" && a.nick) return a;
+    } catch (_) {}
+    return null;
+  }
+
+  function enter(a) {
+    account = a;
+    storeAccount(a);
+    loginEl.hidden = true;
+    sessionBar.hidden = false;
+    sessionWho.className = "session-who" + (a.mode === "test" ? " test" : "");
+    // สร้างด้วย textContent ไม่ใช่ innerHTML กันชื่อเล่นที่มี HTML
+    const b = document.createElement("b");
+    b.textContent = a.mode === "test" ? "โหมดทดสอบ" : a.nick;
+    sessionWho.replaceChildren(
+      a.mode === "test" ? "" : "ผู้ใช้: ", b,
+      a.mode === "test" ? " · บันทึกในเครื่องเท่านั้น" : ""
+    );
+    refreshDownloadButton();
+  }
+
+  function showLogin() {
+    loginEl.hidden = false;
+    sessionBar.hidden = true;
+    nickInput.value = "";
+    adminCodeInput.value = "";
+    loginErr.textContent = "";
+    adminErr.textContent = "";
+    adminForm.hidden = true;
+    nickInput.focus();
+  }
+
+  loginForm.addEventListener("submit", (e) => {
+    e.preventDefault();
+    const nick = cleanNick(nickInput.value);
+    if (!nick) { loginErr.textContent = "กรุณาใส่ชื่อเล่น"; nickInput.focus(); return; }
+    enter({ mode: "user", nick });
+  });
+
+  btnAdminToggle.addEventListener("click", () => {
+    adminForm.hidden = !adminForm.hidden;
+    if (!adminForm.hidden) adminCodeInput.focus();
+  });
+
+  adminForm.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    if (!window.crypto || !crypto.subtle) {
+      adminErr.textContent = "ต้องเปิดผ่าน https หรือ localhost";
+      return;
+    }
+    const hash = await sha256Hex(adminCodeInput.value.trim());
+    if (hash !== ADMIN_CODE_SHA256) {
+      adminErr.textContent = "รหัสไม่ถูกต้อง";
+      adminCodeInput.select();
+      return;
+    }
+    enter({ mode: "test", nick: "test" });
+  });
+
+  btnLogout.addEventListener("click", () => {
+    if (saving) { alert("กำลังบันทึกลง Drive อยู่ รอสักครู่"); return; }
+    if (!confirmDiscard()) return;
+    // ปิดกล้องด้วย: คนถัดไปที่ login ต้องเริ่มจากหน้าแรกเสมอ
+    if (mediaStream) stopCamera();
+    resetMeasurement();
+    setState(S.IDLE);
+    account = null;
+    storeAccount(null);
+    showLogin();
   });
 
   btnStopCam.addEventListener("click", stopCamera);
 
   renderTicks();
   setState(S.IDLE);
+  {
+    const saved = loadAccount();
+    if (saved) enter(saved); else showLogin();
+    document.getElementById("btnLogin").disabled = false;
+    document.getElementById("btnAdminLogin").disabled = false;
+  }
 </script>
 
 </body>

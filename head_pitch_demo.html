@@ -25,6 +25,7 @@
     --warn: #FB7185;
     --warn-soft: rgba(251,113,133,0.14);
     --amber: #FBBF24;
+    --ok: #34D399;
     --neutral: #64748B;
 
     --text: #EAEFF7;
@@ -350,6 +351,42 @@
     box-shadow: none; cursor: not-allowed; transform: none; opacity: 0.5;
   }
 
+  /* ---- สถานะการบันทึกลง Drive (อยู่หลัง :disabled / .secondary เพื่อให้ชนะ) ----
+     fetch บอกความคืบหน้าจริงไม่ได้ และเวลาส่วนใหญ่คือรอ Apps Script เขียนไฟล์
+     แถบจึงวิ่งเร็วช่วงแรกแล้วช้าลงค้างที่ ~92% จนได้คำตอบ แล้วค่อยเปลี่ยนเป็นเขียว/แดง */
+  button.saving:disabled {
+    position: relative; overflow: hidden; isolation: isolate;
+    opacity: 1; cursor: progress;
+    background: var(--surface); color: var(--text); border: 1px solid var(--border);
+  }
+  button.saving::before {
+    content: ""; position: absolute; inset: 0 auto 0 0; z-index: -1; width: 0;
+    background: linear-gradient(90deg, rgba(34,211,238,0.38), rgba(99,102,241,0.5));
+    animation: saveFill 8s cubic-bezier(0.12, 0.75, 0.25, 1) forwards;
+  }
+  @keyframes saveFill { to { width: 92%; } }
+  button.saved:disabled {
+    opacity: 1; cursor: default; border: none;
+    background: var(--ok); color: #03140D;
+    box-shadow: 0 10px 30px -12px rgba(52,211,153,0.85);
+    animation: savedPop 0.35s var(--ease);
+  }
+  @keyframes savedPop { from { transform: scale(0.94); } to { transform: scale(1); } }
+  button.failed {
+    background: var(--warn); color: #1A0509; border: none;
+    box-shadow: 0 10px 30px -12px rgba(251,113,133,0.85);
+  }
+  button.failed:hover:not(:disabled) { background: var(--warn); box-shadow: 0 16px 38px -12px rgba(251,113,133,1); }
+  button.failed.cta { animation: failPulse 1.8s var(--ease) infinite; }
+  @keyframes failPulse {
+    0%, 100% { box-shadow: 0 10px 30px -12px rgba(251,113,133,0.8), 0 0 0 0 rgba(251,113,133,0.55); }
+    50%      { box-shadow: 0 16px 38px -12px rgba(251,113,133,1), 0 0 0 9px rgba(251,113,133,0); }
+  }
+  /* ข้อความผลการบันทึกเป็นภาษาไทย ฟอนต์ mono ไม่มีตัวไทยจึงดูห่างๆ อ่านยาก */
+  .log-line.ok, .log-line.err { font-family: var(--font); font-size: 12.5px; }
+  .log-line.ok  { color: var(--ok); }
+  .log-line.err { color: var(--warn); }
+
   .log-line {
     text-align: center; min-height: 18px;
     font-family: var(--mono); font-size: 11px; font-weight: 500;
@@ -505,6 +542,8 @@
   /* เคารพการตั้งค่าของผู้ใช้ที่ปิด animation (ป้องกันอาการเวียนหัว) */
   @media (prefers-reduced-motion: reduce) {
     *, *::before, *::after { animation: none !important; transition-duration: 0.01ms !important; }
+    /* ไม่มีแอนิเมชัน -> แสดงแถบครึ่งหนึ่งค้างไว้แทน ให้ยังรู้ว่ากำลังบันทึก */
+    button.saving::before { width: 50%; }
   }
 </style>
 </head>
@@ -1096,9 +1135,10 @@
     let label = "ดาวน์โหลด CSV";
     let disabled = logRows.length === 0;
     if (drive) {
+      // ข้อความสั้นพอให้อยู่บรรทัดเดียวบนจอมือถือ รายละเอียดอยู่ในบรรทัด log ใต้ปุ่ม
       if (saving) { label = "กำลังบันทึก…"; disabled = true; }
-      else if (savedToDrive) { label = "บันทึกลง Drive แล้ว ✓"; disabled = true; }
-      else if (saveError) label = "ลองบันทึกอีกครั้ง";
+      else if (savedToDrive) { label = "บันทึกแล้ว ✓"; disabled = true; }
+      else if (saveError) label = "ไม่สำเร็จ ลองใหม่";
       else label = "บันทึกลง Drive";
       if (state === S.MEASURE) disabled = true;
     }
@@ -1110,6 +1150,12 @@
     btnDownload.classList.toggle("secondary", !emphasize);
     btnPrimary.classList.toggle("secondary", emphasize);
     btnLocalFallback.hidden = !(drive && saveError && !savedToDrive && logRows.length > 0);
+    btnDownload.classList.toggle("saving", drive && saving);
+    btnDownload.classList.toggle("saved", drive && savedToDrive);
+    btnDownload.classList.toggle("failed", drive && !!saveError && !savedToDrive && !saving);
+    btnDownload.setAttribute("aria-busy", drive && saving ? "true" : "false");
+    logLine.classList.toggle("ok", drive && savedToDrive);
+    logLine.classList.toggle("err", drive && !!saveError && !savedToDrive && !saving);
   }
 
   /* =====================================================================

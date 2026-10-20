@@ -649,7 +649,8 @@
     <button type="button" class="link" id="btnLocalFallback" hidden>ดาวน์โหลดไว้ในเครื่องแทน</button>
   </div>
 
-  <details class="advanced">
+  <!-- เฉพาะโหมดทดสอบของ admin: ผู้ใช้ทั่วไปใช้ค่าเริ่มต้นเสมอ -->
+  <details class="advanced" id="advanced" hidden>
     <summary>ตั้งค่าขั้นสูง</summary>
     <div class="adv-grid">
       <label>ทิศทางการก้ม
@@ -859,6 +860,7 @@
   const sessionWho = document.getElementById("sessionWho");
   const btnLogout = document.getElementById("btnLogout");
   const btnLocalFallback = document.getElementById("btnLocalFallback");
+  const advancedPanel = document.getElementById("advanced");
   const signModeSelect = document.getElementById("signMode");
   const distTolInput = document.getElementById("distTol");
   const usePoseSelect = document.getElementById("usePose");
@@ -1508,7 +1510,8 @@
       const isPerm = err.name === "NotAllowedError" || /permission/i.test(err.message);
       const tip = isPerm
         ? "ไม่ได้รับสิทธิ์ใช้กล้อง — เปิดสิทธิ์กล้องของเว็บนี้ในการตั้งค่าเบราว์เซอร์แล้วรีเฟรช (ถ้าเปิดจากแอป LINE / Facebook ให้เปิดใน Safari หรือ Chrome แทน)"
-        : "ลองกดใหม่อีกครั้ง ถ้ายังไม่ได้ให้ปิดแอปอื่นที่ใช้กล้องอยู่ หรือปิด Pose ในตั้งค่าขั้นสูงถ้าเครื่องช้า";
+        : "ลองกดใหม่อีกครั้ง ถ้ายังไม่ได้ให้ปิดแอปอื่นที่ใช้กล้องอยู่"
+          + (account && account.mode === "test" ? " หรือปิด Pose ในตั้งค่าขั้นสูงถ้าเครื่องช้า" : "");
       setHint(`<b>เริ่มไม่สำเร็จ:</b> ${err.message}<br/><span style="font-size:13px">${tip}</span>`, "blocked");
     }
   }
@@ -2105,8 +2108,19 @@
     return null;
   }
 
+  // ค่าเริ่มต้นของตั้งค่าขั้นสูง: ผู้ใช้ทั่วไปมองไม่เห็นแผงนี้ จึงต้องได้ค่าเหล่านี้เสมอ
+  // แม้ admin จะปรับไว้ก่อน logout บนเครื่องเดียวกัน
+  function resetAdvanced() {
+    signModeSelect.value = "auto";
+    distTolInput.value = String(CFG.DIST_REL_TOL_CM);
+    usePoseSelect.value = "1";
+    advancedPanel.open = false;
+  }
+
   function enter(a) {
     account = a;
+    if (a.mode !== "test") resetAdvanced();
+    advancedPanel.hidden = a.mode !== "test";
     storeAccount(a);
     loginEl.hidden = true;
     sessionBar.hidden = false;

@@ -121,10 +121,13 @@
     padding: 9px 17px; border-radius: var(--pill);
     font-family: var(--mono); font-size: 20px; font-weight: 700;
     font-variant-numeric: tabular-nums; letter-spacing: -0.025em;
-    transition: color 0.3s var(--ease), box-shadow 0.3s var(--ease);
+    transition: color 0.3s var(--ease), box-shadow 0.3s var(--ease), opacity 0.25s var(--ease), visibility 0.25s;
   }
   .angle-badge.ok   { color: var(--accent); box-shadow: 0 0 24px -8px rgba(34,211,238,0.65); }
   .angle-badge.warn { color: var(--warn);   box-shadow: 0 0 24px -8px rgba(251,113,133,0.65); }
+  /* ไม่พบใบหน้า = ไม่มีมุมให้แสดง ซ่อนป้ายไปเลย (ป้ายล่างบอกเหตุผลอยู่แล้ว)
+     ใช้ visibility แทน display ป้ายเวลาข้างๆ จึงไม่กระโดดตำแหน่ง */
+  .angle-badge.no-face { visibility: hidden; opacity: 0; }
 
   .timer-badge {
     padding: 7px 13px; border-radius: var(--pill);
@@ -1527,6 +1530,7 @@
       mediaStream = null;
     }
     video.srcObject = null;
+    angleBadge.classList.remove("no-face");
     setState(S.IDLE);
     setHint(logRows.length ? "ปิดกล้องแล้ว — ผลรอบนี้ยังกดบันทึกได้" : "ปิดกล้องแล้ว", logRows.length ? "done" : "");
   }
@@ -1603,9 +1607,7 @@
     if (!hasFace) {
       pitchFilter.reset();
       clearHold();
-      angleBadge.textContent = "–.–°";   // คำว่า "ไม่พบใบหน้า" อยู่ที่ป้ายล่างแล้ว ไม่เขียนซ้ำ
-      angleBadge.classList.add("warn");
-      angleBadge.classList.remove("ok");
+      angleBadge.classList.add("no-face");
       paintGate({ ok: false, code: "no_face", msg: "ไม่พบใบหน้า" }, false);
       if (state === S.CALIB) restartCalibration(null);
       if (state === S.MEASURE) {
@@ -1672,6 +1674,7 @@
     // ตัวเลข/สีสอดคล้องกับสิ่งที่แถบกวาดมุมนับจริง
     if (!warnState && flexionSigned > CFG.ANGLE_LIMIT) warnState = true;
     else if (warnState && flexionSigned < CFG.ANGLE_LIMIT - CFG.ANGLE_HYSTERESIS) warnState = false;
+    angleBadge.classList.remove("no-face");
     angleBadge.textContent = baselinePitch === null
       ? `pitch ${head.pitch.toFixed(1)}° | ${head.distCm.toFixed(0)} ซม.`
       : `${flexionSigned.toFixed(1)}° | ${head.distCm.toFixed(0)} ซม.`;

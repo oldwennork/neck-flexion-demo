@@ -138,6 +138,8 @@
     transition: color 0.3s var(--ease);
   }
   .timer-badge.hot { color: var(--amber); }
+  .rec-badge { color: #FFE4E8; background: rgba(220,38,38,0.75); border-color: rgba(248,113,113,0.7); font-weight: 700; }
+  .rec-badge::before { content: "●"; margin-right: 5px; animation: pulse 1.2s var(--ease) infinite; }
   .timer-badge[hidden] { display: none; }
 
   /* ป้ายระยะ/คำเตือน: ที่เดียวที่บอกสาเหตุเวลาหยุดนับ จึงต้องอ่านออกจากระยะแขน */
@@ -667,6 +669,7 @@
         <!-- ซ่อนจนกว่าจะมีมุมให้แสดง (off) — ผู้ใช้ทั่วไปเห็นหลังตั้ง baseline -->
         <div class="angle-badge ok off" id="angleBadge"></div>
         <div class="timer-badge" id="timerBadge" hidden>0.0 วิ</div>
+        <div class="timer-badge rec-badge" id="recBadge" hidden>REC</div>
       </div>
       <div class="hud-msg" id="stepHint">กด <b>“เปิดกล้อง”</b> เพื่อเริ่ม</div>
 
@@ -735,6 +738,21 @@
       <label>&nbsp;
         <button type="button" id="btnStopCam" class="secondary" style="padding:8px 12px;font-size:13px;">ปิดกล้อง</button>
       </label>
+      <label>อัดวิดีโอทดสอบระหว่างวัด
+        <select id="recMode">
+          <option value="0">ปิด</option>
+          <option value="1">เปิด (ดาวน์โหลดเมื่อจบรอบ)</option>
+        </select>
+      </label>
+      <label>เล่นจากวิดีโอแทนกล้อง
+        <input type="file" id="videoFile" accept="video/*" />
+      </label>
+      <div class="adv-note">
+        <b>วิดีโอทดสอบ:</b> เปิด “อัดวิดีโอ” แล้ววัดตามปกติ — อัดตั้งแต่กล้องพร้อมจนจบรอบ แล้วดาวน์โหลดเป็น
+        <code>fixture_วันที่_calib-12.3s.mp4</code> (ตัวเลขคือวินาทีที่กดตั้ง Baseline)
+        เลือกไฟล์นี้ใน “เล่นจากวิดีโอ” แล้วกด “เล่นวิดีโอ” ระบบประมวลผลเหมือนกล้องจริงและกดตั้ง Baseline ให้เองที่วินาทีเดิม
+        วิดีโอมีใบหน้า — เก็บไว้ในเครื่อง อย่าอัปขึ้น repo
+      </div>
       <div class="adv-note">
         ระยะอ่านจาก <b>translation z ของ transformation matrix</b> (หน่วย ซม. โดยประมาณ) จึงไม่ขึ้นกับความละเอียดกล้อง
         ระบบเทียบกับระยะ ณ ตอนตั้ง baseline ไม่ใช่ค่าสัมบูรณ์ — <b>การก้มหน้าทำให้หัวเข้าใกล้กล้องเองราว 4-5 ซม.</b>
@@ -985,6 +1003,9 @@
   const btnPrimary = document.getElementById("btnPrimary");
   const btnDownload = document.getElementById("btnDownload");
   const btnStopCam = document.getElementById("btnStopCam");
+  const recBadge = document.getElementById("recBadge");
+  const recModeSelect = document.getElementById("recMode");
+  const videoFileInput = document.getElementById("videoFile");
   const logLine = document.getElementById("logLine");
 
   const loginEl = document.getElementById("login");
@@ -1225,7 +1246,7 @@
     state = next;
     switch (next) {
       case S.IDLE:
-        btnPrimary.textContent = "เปิดกล้อง";
+        btnPrimary.textContent = fileSource ? "เล่นวิดีโอ" : "เปิดกล้อง";
         btnPrimary.disabled = false;
         cpPanel.hidden = true;
         timerBadge.hidden = true;
@@ -1618,11 +1639,20 @@
     setState(S.LOADING);
     try {
       await setupModels();
-      mediaStream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: "user", width: { ideal: 1280 }, height: { ideal: 720 } },
-        audio: false,
-      });
-      video.srcObject = mediaStream;
+      if (fileSource) {
+        // admin: เล่นวิดีโอทดสอบแทนกล้อง — ไปผ่าน pipeline เดียวกันทุกอย่าง
+        video.srcObject = null;
+        video.src = fileSource.url;
+        video.loop = false;
+        video.currentTime = 0;
+        fileCalibFired = false;
+      } else {
+        mediaStream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: "user", width: { ideal: 1280 }, height: { ideal: 720 } },
+          audio: false,
+        });
+        video.srcObject = mediaStream;
+      }
       await video.play();
 
       // ตั้งขนาด canvas และอัตราส่วน stage ให้ตรงกับกล้องจริง
@@ -1632,7 +1662,9 @@
       stage.style.aspectRatio = `${video.videoWidth} / ${video.videoHeight}`;
 
       running = true;
+      loopId++;
       setState(S.READY);
+      startRecording();
       scheduleFrame();
     } catch (err) {
       console.error(err);
@@ -1648,12 +1680,14 @@
 
   // ของเดิมไม่เคย .stop() track เลย ไฟกล้องจึงติดค้างจนกว่าจะปิดแท็บ
   function stopCamera() {
+    stopRecording();
     running = false;
     if (mediaStream) {
       mediaStream.getTracks().forEach((t) => t.stop());
       mediaStream = null;
     }
     video.srcObject = null;
+    if (video.getAttribute("src")) { video.pause(); video.removeAttribute("src"); video.load(); }
     angleBadge.classList.remove("no-face");
     angleBadge.classList.add("off");
     setState(S.IDLE);
@@ -1672,17 +1706,24 @@
      ที่นี่ใช้ requestVideoFrameCallback (1 callback ต่อ 1 เฟรมวิดีโอจริง)
      และ fallback เป็น rAF + เช็ค currentTime สำหรับเบราว์เซอร์ที่ไม่รองรับ
      ===================================================================== */
-  function scheduleFrame() {
-    if (!running) return;
+  // loopId: เริ่มลูปใหม่ (เช่นเล่นวิดีโอซ้ำ) แล้ว callback ค้างของลูปเก่าจะไม่ทำงานซ้อน
+  let loopId = 0;
+  function scheduleFrame(id = loopId) {
+    if (!running || id !== loopId) return;
     if (typeof video.requestVideoFrameCallback === "function") {
-      video.requestVideoFrameCallback(() => onFrame(true));
+      video.requestVideoFrameCallback(() => onFrame(true, id));
     } else {
-      requestAnimationFrame(() => onFrame(false));
+      requestAnimationFrame(() => onFrame(false, id));
     }
   }
-  function onFrame(isVideoFrame) {
-    if (!running) return;
+  function onFrame(isVideoFrame, id) {
+    if (!running || id !== loopId) return;
     try {
+      // เล่นจากวิดีโอ: กดตั้ง Baseline ให้เองที่วินาทีเดียวกับตอนอัด
+      if (fileCalibAt !== null && !fileCalibFired && state === S.READY && video.currentTime >= fileCalibAt) {
+        fileCalibFired = true;
+        beginCalibration();
+      }
       if (video.readyState >= 2) {
         if (isVideoFrame || video.currentTime !== lastVideoTime) {
           lastVideoTime = video.currentTime;
@@ -1692,7 +1733,7 @@
     } catch (err) {
       console.error("frame error:", err);
     }
-    scheduleFrame();
+    scheduleFrame(id);
   }
 
   function processFrame() {
@@ -1848,6 +1889,7 @@
      จากช่วงท้าย CALIB_WINDOW_MS พร้อมเช็ค SD ว่านิ่งพอจริง
      ===================================================================== */
   function beginCalibration() {
+    if (recorder) recCalibAt = (performance.now() - recStartMs) / 1000;
     calibLastBeep = null;
     calibStartMs = performance.now();
     calibSamples = [];
@@ -2067,6 +2109,7 @@
   }
 
   function finishSession(reason) {
+    stopRecording();
     hideCountdown();
     setState(S.DONE);
     // จอมือถือเตี้ย: ข้อความสรุปหลายบรรทัดดันปุ่มดาวน์โหลดตกขอบล่าง
@@ -2116,8 +2159,109 @@
         // ไม่มี confirm ไม่มี undo
         if (!confirmDiscard()) return;
         resetMeasurement();
+        if (fileSource) {
+          video.currentTime = 0;
+          fileCalibFired = false;
+          video.play();
+          running = true;
+          loopId++;
+          scheduleFrame();
+        }
         setState(S.READY);
+        startRecording();
         break;
+    }
+  });
+
+  /* =====================================================================
+     วิดีโอทดสอบ (admin) — อัดระหว่างวัดจริง / เล่นซ้ำแทนกล้อง
+     ---------------------------------------------------------------------
+     อัดจากในเดโมเอง (ไม่ใช่ record_fixture.html) เพราะคนอัดต้องเห็นหมุด/วงแหวน
+     ถึงจะค้างในช่วง ±0.75° ได้จริง คลิปที่อัดแบบไม่เห็นมุมเล่นซ้ำแล้วไม่ผ่าน checkpoint
+     วินาทีที่กดตั้ง Baseline ฝังไว้ในชื่อไฟล์ ตอนเล่นซ้ำระบบกดให้เองที่วินาทีเดิม
+     ===================================================================== */
+  let recorder = null;
+  let recStartMs = 0;
+  let recCalibAt = null;
+  let fileSource = null;      // { url, name } เมื่อเลือกวิดีโอแทนกล้อง
+  let fileCalibAt = null;     // วินาทีที่ต้องกดตั้ง Baseline (จากชื่อไฟล์)
+  let fileCalibFired = false;
+
+  function pickRecMime() {
+    const types = ["video/mp4;codecs=avc1", "video/mp4", "video/webm;codecs=vp9", "video/webm;codecs=vp8", "video/webm"];
+    return types.find((t) => MediaRecorder.isTypeSupported(t)) || "";
+  }
+
+  function startRecording() {
+    if (recorder || !mediaStream || recModeSelect.value !== "1" || !window.MediaRecorder) return;
+    const mimeType = pickRecMime();
+    const chunks = [];
+    const rec = new MediaRecorder(mediaStream, mimeType ? { mimeType, videoBitsPerSecond: 4000000 } : undefined);
+    rec.ondataavailable = (e) => { if (e.data && e.data.size) chunks.push(e.data); };
+    rec.onstop = () => {
+      const type = rec.mimeType || mimeType || "video/webm";
+      const ext = type.includes("mp4") ? "mp4" : "webm";
+      // ใช้ค่าที่จับไว้ตอนสั่งหยุด — onstop มาทีหลัง อาจเริ่มอัดรอบใหม่ไปแล้ว
+      const calib = rec.calibAt == null ? "" : `_calib-${rec.calibAt.toFixed(1)}s`;
+      const url = URL.createObjectURL(new Blob(chunks, { type }));
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `fixture_${stampLocal(new Date())}${calib}.${ext}`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(url), 10000);
+    };
+    rec.start(1000);
+    recorder = rec;
+    recStartMs = performance.now();
+    recCalibAt = null;
+    recBadge.hidden = false;
+  }
+
+  function stopRecording() {
+    if (!recorder) return;
+    recorder.calibAt = recCalibAt;
+    if (recorder.state !== "inactive") recorder.stop();
+    recorder = null;
+    recBadge.hidden = true;
+  }
+
+  function escapeHtml(t) {
+    return t.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  }
+
+  function clearFileSource(keepInput = false) {
+    if (fileSource) URL.revokeObjectURL(fileSource.url);
+    fileSource = null;
+    fileCalibAt = null;
+    if (!keepInput) videoFileInput.value = "";
+  }
+
+  videoFileInput.addEventListener("change", () => {
+    if (running) stopCamera();
+    clearFileSource(true);
+    const f = videoFileInput.files[0];
+    if (f) {
+      fileSource = { url: URL.createObjectURL(f), name: f.name };
+      const m = f.name.match(/calib-(\d+(?:\.\d+)?)s/);
+      fileCalibAt = m ? parseFloat(m[1]) : null;
+    }
+    setState(S.IDLE);
+    if (f) {
+      setHint(`วิดีโอ: <b>${escapeHtml(f.name)}</b><br/>กด “เล่นวิดีโอ” ` +
+        (fileCalibAt === null ? "แล้วกดตั้ง Baseline เองตอนคนในคลิปนั่งนิ่ง" : `— ตั้ง Baseline ให้เองที่ ${fileCalibAt} วิ`));
+    }
+  });
+
+  video.addEventListener("ended", () => {
+    if (!fileSource) return;
+    running = false;
+    if (state === S.MEASURE) finishSession("วิดีโอจบ");
+    else if (state === S.READY || state === S.CALIB) {
+      hideCountdown();
+      setState(S.READY);
+      setHint("วิดีโอจบก่อนเริ่มวัด — ตรวจว่าชื่อไฟล์มี calib-…s หรือกดตั้ง Baseline เองระหว่างเล่น", "blocked");
     }
   });
 
@@ -2288,6 +2432,8 @@
     signModeSelect.value = "auto";
     distTolInput.value = String(CFG.DIST_REL_TOL_CM);
     usePoseSelect.value = "1";
+    recModeSelect.value = "0";
+    clearFileSource();
     advancedPanel.open = false;
   }
 

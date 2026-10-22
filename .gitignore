@@ -9,3 +9,8 @@
 
 # macOS
 .DS_Store
+
+# วิดีโอทดสอบจากโหมด admin (มีใบหน้า)
+*.mp4
+*.mov
+*.webm

@@ -138,8 +138,6 @@
     transition: color 0.3s var(--ease);
   }
   .timer-badge.hot { color: var(--amber); }
-  .rec-badge { color: #FFE4E8; background: rgba(220,38,38,0.75); border-color: rgba(248,113,113,0.7); font-weight: 700; }
-  .rec-badge::before { content: "●"; margin-right: 5px; animation: pulse 1.2s var(--ease) infinite; }
   .timer-badge[hidden] { display: none; }
 
   /* ป้ายระยะ/คำเตือน: ที่เดียวที่บอกสาเหตุเวลาหยุดนับ จึงต้องอ่านออกจากระยะแขน */
@@ -322,9 +320,6 @@
   .hud-msg.blocked { background: rgba(190,40,70,0.55); border-color: rgba(251,113,133,0.6); }
   .hud-msg.done { background: rgba(8,60,72,0.78); border-color: rgba(34,211,238,0.5); }
   .hud-msg small { display: block; margin-top: 4px; font-size: 13px; color: var(--muted); }
-  /* คำสั่งของสคริปต์อัดวิดีโอทดสอบ (admin) — สีเหลืองแยกจากคำสั่งปกติ */
-  .hud-msg.script { background: rgba(120,80,0,0.78); border-color: rgba(251,191,36,0.7); font-size: 18px; }
-  .hud-msg.script small { color: #FDE68A; }
 
   /* ---- popup วิธีใช้ (ใช้โครงเดียวกับหน้า login) ---- */
   .guide-card { max-width: 420px; gap: 12px; }
@@ -672,9 +667,7 @@
         <!-- ซ่อนจนกว่าจะมีมุมให้แสดง (off) — ผู้ใช้ทั่วไปเห็นหลังตั้ง baseline -->
         <div class="angle-badge ok off" id="angleBadge"></div>
         <div class="timer-badge" id="timerBadge" hidden>0.0 วิ</div>
-        <div class="timer-badge rec-badge" id="recBadge" hidden>REC</div>
       </div>
-      <div class="hud-msg script" id="scriptCue" hidden></div>
       <div class="hud-msg" id="stepHint">กด <b>“เปิดกล้อง”</b> เพื่อเริ่ม</div>
 
       <!-- วงแหวน: ใช้ทั้ง CALIB (3-2-1) และ HOLD (ค้างมุมไว้) -->
@@ -742,30 +735,14 @@
       <label>&nbsp;
         <button type="button" id="btnStopCam" class="secondary" style="padding:8px 12px;font-size:13px;">ปิดกล้อง</button>
       </label>
-      <label>อัดวิดีโอทดสอบระหว่างวัด
-        <select id="recMode">
-          <option value="0">ปิด</option>
-          <option value="2">อัดตามสคริปต์ทดสอบ (แนะนำ)</option>
-          <option value="1">อัดอิสระ</option>
-        </select>
-      </label>
       <label>เล่นจากวิดีโอแทนกล้อง
         <input type="file" id="videoFile" accept="video/*" />
       </label>
       <div class="adv-note">
-        <b>อัดตามสคริปต์:</b> ระบบบอกทีละขั้น (ข้อความสีเหลือง + เสียงพูด) ให้ทำครบทุกกรณี — ตั้ง Baseline เอง,
-        checkpoint 5° 10°, หันหน้า, เอียงหัว, เอนเข้า, เอนออก, เลื่อนตัวออกนอกวงรี, ปิดหน้า, ก้มเกิน, แล้ว 15° 20° 25°
-        แต่ละขั้นรอจนเดโมตรวจเจอจริงค่อยไปต่อ (ไม่เจอใน 10 วิ = ข้าม) จบแล้วสรุปผลบนจอและใน CSV ไม่ต้องแตะจอระหว่างอัด
-        — เล่นคลิปที่มี <code>_script</code> ในชื่อซ้ำ ระบบเดินสคริปต์ตามเงียบๆ แล้วสรุปผลเหมือนกัน ใช้เช็คว่าแก้โค้ดแล้วยังผ่านเหมือนเดิม<br/>
-        <b>วิดีโอทดสอบ:</b> อัดตั้งแต่กล้องพร้อมจนจบรอบ แล้วดาวน์โหลดเป็น
-        <code>fixture_วันที่_calib-12.3s.mp4</code> (ตัวเลขคือวินาทีที่กดตั้ง Baseline)
-        เลือกไฟล์นี้ใน “เล่นจากวิดีโอ” แล้วกด “เล่นวิดีโอ” ระบบประมวลผลเหมือนกล้องจริงและกดตั้ง Baseline ให้เองที่วินาทีเดิม
-        วิดีโอมีใบหน้า — เก็บไว้ในเครื่อง อย่าอัปขึ้น repo
-      </div>
-      <div class="adv-note">
-        ระยะอ่านจาก <b>translation z ของ transformation matrix</b> (หน่วย ซม. โดยประมาณ) จึงไม่ขึ้นกับความละเอียดกล้อง
-        ระบบเทียบกับระยะ ณ ตอนตั้ง baseline ไม่ใช่ค่าสัมบูรณ์ — <b>การก้มหน้าทำให้หัวเข้าใกล้กล้องเองราว 4-5 ซม.</b>
-        ค่า ±10 จึงเผื่อไว้แล้ว ถ้าตั้งแคบกว่านี้ระบบจะปฏิเสธเฟรมตอนก้มลึกสุดซึ่งเป็นเฟรมที่สำคัญที่สุด
+        <b>เล่นจากวิดีโอ:</b> เลือกคลิปที่อัดจาก <code>record_fixture.html</code>
+        (ชื่อไฟล์มี <code>calib-12.3s</code> = วินาทีที่ตั้ง Baseline) แล้วกด “เล่นวิดีโอ”
+        ระบบประมวลผลเหมือนกล้องจริง ตั้ง Baseline ให้เองที่วินาทีนั้น และพอคลิปจบจะสรุปว่าตรวจเจอกรณีไหนบ้าง
+        — วิดีโอมีใบหน้า เก็บไว้ในเครื่อง อย่าอัปขึ้น repo
       </div>
     </div>
   </details>
@@ -1012,9 +989,6 @@
   const btnPrimary = document.getElementById("btnPrimary");
   const btnDownload = document.getElementById("btnDownload");
   const btnStopCam = document.getElementById("btnStopCam");
-  const recBadge = document.getElementById("recBadge");
-  const recModeSelect = document.getElementById("recMode");
-  const scriptCue = document.getElementById("scriptCue");
   const videoFileInput = document.getElementById("videoFile");
   const logLine = document.getElementById("logLine");
 
@@ -1530,7 +1504,7 @@
       `# baseline_dist_cm,${baselineDistCm === null ? "" : baselineDistCm.toFixed(1)}`,
       `# dist_tol_cm,${distTolInput.value}`,
       `# center_gate,nose inside on-screen guide ellipse`,
-      ...(Script.results.length ? [`# script,${Script.results.map((r) => `${r.id}=${r.ok ? "ok" : "missed"}`).join(" ")}`] : []),
+      ...(Report.line ? [`# playback_report,${Report.line}`] : []),
       `# alt_pitch,experimental: flex_axis = forehead(10)->chin(152) / flex_lower = nose(1)->chin(152) / not used for checkpoints`,
       `# video_resolution,${video.videoWidth}x${video.videoHeight}`,
       `# pose_enabled,${poseReady}`,
@@ -1675,8 +1649,7 @@
       running = true;
       loopId++;
       setState(S.READY);
-      startRecording();
-      if (fileSource && /_script/.test(fileSource.name)) Script.start(true);
+      if (fileSource) Report.start();
       scheduleFrame();
     } catch (err) {
       console.error(err);
@@ -1692,8 +1665,7 @@
 
   // ของเดิมไม่เคย .stop() track เลย ไฟกล้องจึงติดค้างจนกว่าจะปิดแท็บ
   function stopCamera() {
-    Script.finish();
-    stopRecording();
+    Report.finish();
     running = false;
     if (mediaStream) {
       mediaStream.getTracks().forEach((t) => t.stop());
@@ -1721,13 +1693,19 @@
      ===================================================================== */
   // loopId: เริ่มลูปใหม่ (เช่นเล่นวิดีโอซ้ำ) แล้ว callback ค้างของลูปเก่าจะไม่ทำงานซ้อน
   let loopId = 0;
+  let frameTick = 0;          // ใครมาก่อนได้ทำ (rVFC หรือตัวสำรอง) อีกตัวถูกทิ้ง
+  let rvfcPending = false;
   function scheduleFrame(id = loopId) {
     if (!running || id !== loopId) return;
-    if (typeof video.requestVideoFrameCallback === "function") {
-      video.requestVideoFrameCallback(() => onFrame(true, id));
-    } else {
-      requestAnimationFrame(() => onFrame(false, id));
+    const tick = ++frameTick;
+    const go = (isVideoFrame) => { if (tick !== frameTick) return; frameTick++; onFrame(isVideoFrame, id); };
+    if (typeof video.requestVideoFrameCallback === "function" && !rvfcPending) {
+      rvfcPending = true;
+      video.requestVideoFrameCallback(() => { rvfcPending = false; go(true); });
     }
+    // สำรอง: บางสถานการณ์ rVFC ไม่ยิงเลยทั้งที่วิดีโอเล่นอยู่ (หน้าต่างไม่ได้วาดภาพ,
+    // webview บางตัว) ลูปเลยค้าง -> เช็คเวลาวิดีโอเองทุก 50ms (onFrame ข้ามถ้าเฟรมไม่เปลี่ยน)
+    setTimeout(() => go(false), 50);
   }
   function onFrame(isVideoFrame, id) {
     if (!running || id !== loopId) return;
@@ -1800,9 +1778,9 @@
         // session จะค้างอยู่ตลอดเพราะ tickMeasure() ไม่เคยถูกเรียก
         const tSec = (ts - sessionStartMs) / 1000;
         timerBadge.textContent = `${tSec.toFixed(1)} วิ`;
-        if (tSec > CFG.SESSION_TIMEOUT_SEC * Script.timeoutFactor) finishSession("ครบเวลาที่กำหนด");
+        if (tSec > CFG.SESSION_TIMEOUT_SEC * (fileSource ? 3 : 1)) finishSession("ครบเวลาที่กำหนด");
       }
-      Script.update("no_face", null);
+      Report.update({ ok: false, code: "no_face", msg: "" }, null);
       return;
     }
 
@@ -1873,7 +1851,7 @@
     } else if (state === S.MEASURE) {
       tickMeasure(ts, head, nose, gate, flexion, pitchFilt);
     }
-    Script.update(gate.ok ? "ok" : gate.code, flexion);
+    Report.update(gate, flexion);
   }
 
   function emptyRow(ts, reason) {
@@ -1904,7 +1882,6 @@
      จากช่วงท้าย CALIB_WINDOW_MS พร้อมเช็ค SD ว่านิ่งพอจริง
      ===================================================================== */
   function beginCalibration() {
-    if (recorder) recCalibAt = (performance.now() - recStartMs) / 1000;
     calibLastBeep = null;
     calibStartMs = performance.now();
     calibSamples = [];
@@ -2120,12 +2097,12 @@
 
     if (justFinished) { finishSession("ค้างครบทุกจุดแล้ว"); return; }
     // timeout กันลืมกดจบ (สคริปต์ทดสอบมีหลายขั้น ให้เวลานานกว่า)
-    if (tSec > CFG.SESSION_TIMEOUT_SEC * Script.timeoutFactor) finishSession("ครบเวลาที่กำหนด");
+    // (เล่นจากวิดีโอ: คลิปทดสอบยาวกว่ารอบปกติ ให้เวลานานกว่า)
+    if (tSec > CFG.SESSION_TIMEOUT_SEC * (fileSource ? 3 : 1)) finishSession("ครบเวลาที่กำหนด");
   }
 
   function finishSession(reason) {
-    const scriptSummary = Script.finish();
-    stopRecording();
+    const playbackSummary = Report.finish();
     hideCountdown();
     setState(S.DONE);
     // จอมือถือเตี้ย: ข้อความสรุปหลายบรรทัดดันปุ่มดาวน์โหลดตกขอบล่าง
@@ -2149,7 +2126,7 @@
       "done"
     );
     updateLogLine(`${reason} · ${detail}`);
-    if (scriptSummary) setHint(`<b>สรุปสคริปต์ทดสอบ</b><small>${scriptSummary}</small>`, "done");
+    if (playbackSummary) setHint(`<b>สรุปการเล่นวิดีโอ</b><small>${playbackSummary}</small>`, "done");
   }
 
   /* =====================================================================
@@ -2157,10 +2134,6 @@
      ===================================================================== */
   btnPrimary.addEventListener("click", () => {
     Sfx.unlock();   // iOS/Safari เล่นเสียงได้หลังผู้ใช้แตะจอเท่านั้น
-    // เสียงพูดของสคริปต์ก็เช่นกัน: พูดครั้งแรกจากการแตะนี้ (คำว่างๆ) เพื่อปลดล็อก
-    if (recModeSelect.value === "2" && window.speechSynthesis) {
-      try { speechSynthesis.speak(new SpeechSynthesisUtterance(" ")); } catch (_) {}
-    }
     switch (state) {
       case S.IDLE:
         startCamera();
@@ -2189,67 +2162,19 @@
           scheduleFrame();
         }
         setState(S.READY);
-        startRecording();
-        if (fileSource && /_script/.test(fileSource.name)) Script.start(true);
+        if (fileSource) Report.start();
         break;
     }
   });
 
   /* =====================================================================
-     วิดีโอทดสอบ (admin) — อัดระหว่างวัดจริง / เล่นซ้ำแทนกล้อง
+     เล่นจากวิดีโอ (admin) — ใช้คลิปจาก record_fixture.html แทนกล้อง
      ---------------------------------------------------------------------
-     อัดจากในเดโมเอง (ไม่ใช่ record_fixture.html) เพราะคนอัดต้องเห็นหมุด/วงแหวน
-     ถึงจะค้างในช่วง ±0.75° ได้จริง คลิปที่อัดแบบไม่เห็นมุมเล่นซ้ำแล้วไม่ผ่าน checkpoint
-     วินาทีที่กดตั้ง Baseline ฝังไว้ในชื่อไฟล์ ตอนเล่นซ้ำระบบกดให้เองที่วินาทีเดิม
+     วินาทีที่ต้องตั้ง Baseline ฝังอยู่ในชื่อไฟล์ (calib-12.3s) ระบบกดให้เองที่วินาทีนั้น
      ===================================================================== */
-  let recorder = null;
-  let recStartMs = 0;
-  let recCalibAt = null;
   let fileSource = null;      // { url, name } เมื่อเลือกวิดีโอแทนกล้อง
   let fileCalibAt = null;     // วินาทีที่ต้องกดตั้ง Baseline (จากชื่อไฟล์)
   let fileCalibFired = false;
-
-  function pickRecMime() {
-    const types = ["video/mp4;codecs=avc1", "video/mp4", "video/webm;codecs=vp9", "video/webm;codecs=vp8", "video/webm"];
-    return types.find((t) => MediaRecorder.isTypeSupported(t)) || "";
-  }
-
-  function startRecording() {
-    if (recorder || !mediaStream || recModeSelect.value === "0" || !window.MediaRecorder) return;
-    const mimeType = pickRecMime();
-    const chunks = [];
-    const rec = new MediaRecorder(mediaStream, mimeType ? { mimeType, videoBitsPerSecond: 4000000 } : undefined);
-    rec.ondataavailable = (e) => { if (e.data && e.data.size) chunks.push(e.data); };
-    rec.onstop = () => {
-      const type = rec.mimeType || mimeType || "video/webm";
-      const ext = type.includes("mp4") ? "mp4" : "webm";
-      // ใช้ค่าที่จับไว้ตอนสั่งหยุด — onstop มาทีหลัง อาจเริ่มอัดรอบใหม่ไปแล้ว
-      const calib = (rec.scripted ? "_script" : "") + (rec.calibAt == null ? "" : `_calib-${rec.calibAt.toFixed(1)}s`);
-      const url = URL.createObjectURL(new Blob(chunks, { type }));
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `fixture_${stampLocal(new Date())}${calib}.${ext}`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      setTimeout(() => URL.revokeObjectURL(url), 10000);
-    };
-    rec.scripted = recModeSelect.value === "2";   // ใส่ _script ในชื่อไฟล์
-    rec.start(1000);
-    recorder = rec;
-    recStartMs = performance.now();
-    recCalibAt = null;
-    recBadge.hidden = false;
-    if (recModeSelect.value === "2") Script.start(false);
-  }
-
-  function stopRecording() {
-    if (!recorder) return;
-    recorder.calibAt = recCalibAt;
-    if (recorder.state !== "inactive") recorder.stop();
-    recorder = null;
-    recBadge.hidden = true;
-  }
 
   function escapeHtml(t) {
     return t.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -2283,7 +2208,7 @@
     running = false;
     if (state === S.MEASURE) finishSession("วิดีโอจบ");
     else if (state === S.READY || state === S.CALIB) {
-      Script.finish();
+      Report.finish();
       hideCountdown();
       setState(S.READY);
       setHint("วิดีโอจบก่อนเริ่มวัด — ตรวจว่าชื่อไฟล์มี calib-…s หรือกดตั้ง Baseline เองระหว่างเล่น", "blocked");
@@ -2291,124 +2216,47 @@
   });
 
   /* =====================================================================
-     สคริปต์อัดวิดีโอทดสอบ (admin) — พาทำทุกกรณีตามลำดับ ไม่ต้องสุ่มเอง
+     สรุปการเล่นวิดีโอ — เดโมตรวจเจอกรณีไหนบ้างระหว่างวัด
      ---------------------------------------------------------------------
-     เดินตามเหตุการณ์จริงของเดโม ไม่ใช่ตามเวลา: แต่ละขั้นรอจนตรวจเจอ
-     (gate code / มุมเกิน / checkpoint) ค่อยไปต่อ ขั้นทดสอบ error ให้เวลา 10 วิ
-     ไม่เจอ = บันทึกว่า missed แล้วข้าม จากนั้นสั่ง "กลับท่าเดิม" จนปกติ 1 วิ
-     ขั้นแรกตั้ง Baseline ให้เองเมื่อท่าปกติครบ 2 วิ -> คนในคลิปไม่ต้องแตะจอเลย
+     นับเฉพาะตอนวัด (MEASURE) และต้องเป็นต่อเนื่อง ≥ 0.3 วิ กันเฟรมกระตุกเฟรมเดียว
+     รายการตรงกับขั้นทดสอบใน record_fixture.html -> เล่นคลิปเดิมหลังแก้โค้ด
+     แล้วสรุปต้องได้เหมือนเดิม ถ้ามีกรณีหายไปแปลว่ามีอะไรพัง
      ===================================================================== */
-  const SCRIPT_STEPS = [
-    { id: "baseline", kind: "until", cue: "นั่งคอตรง หน้าอยู่ในวงรี", sub: "ไม่ต้องแตะจอ — ระบบตั้ง Baseline ให้เอง",
-      say: "นั่งคอตรง ไม่ต้องแตะจอ", done: () => state === S.MEASURE },
-    { id: "cp_5_10", kind: "until", cue: "ก้มไปที่ 5° ค้างจนผ่าน แล้วต่อที่ 10°", sub: "ผ่าน 10° แล้วเงยกลับมานั่งคอตรง",
-      say: "ก้มไปที่ห้าองศา แล้วสิบองศา ค้างจนผ่าน", done: () => cpIndex >= 2 },
-    { id: "yaw", kind: "error", cue: "หันหน้าไปทางซ้ายช้าๆ", say: "หันหน้าไปทางซ้าย", expect: ["yaw"] },
-    { id: "roll", kind: "error", cue: "เอียงศีรษะไปทางไหล่", say: "เอียงศีรษะไปทางไหล่", expect: ["roll"] },
-    { id: "lean_in", kind: "error", cue: "เอนตัวเข้าหากล้อง", say: "เอนตัวเข้าหากล้อง", expect: ["moved_near", "torso_lean", "too_close"] },
-    { id: "lean_back", kind: "error", cue: "เอนตัวถอยหลัง", say: "เอนตัวถอยหลัง", expect: ["moved_far", "torso_lean", "too_far"] },
-    { id: "shift", kind: "error", cue: "เลื่อนตัวไปด้านข้าง จนหน้าออกนอกวงรี", say: "เลื่อนตัวไปด้านข้าง", expect: ["off_center", "torso_move"] },
-    { id: "no_face", kind: "error", cue: "เอามือปิดหน้า", say: "เอามือปิดหน้า", expect: ["no_face"] },
-    { id: "overshoot", kind: "over", cue: "ก้มเลย 15° ไปเกือบ 20° แล้วค้างไว้", say: "ก้มเลยสิบห้าองศา ไปเกือบยี่สิบ" },
-    { id: "cp_rest", kind: "until", cue: "เงยมาที่ 15° แล้วก้มต่อให้ครบ 15° 20° 25°", sub: "ค้างแต่ละจุดจนผ่าน",
-      say: "ก้มต่อให้ครบ สิบห้า ยี่สิบ ยี่สิบห้า องศา", done: () => cpIndex >= CHECKPOINTS.length },
+  const REPORT_CASES = [
+    { id: "yaw", label: "หันหน้า", hit: (g) => g.code === "yaw" },
+    { id: "roll", label: "เอียงหัว", hit: (g) => g.code === "roll" },
+    { id: "lean_in", label: "เอนเข้า", hit: (g) => g.code === "moved_near" || g.code === "too_close" || (g.code === "torso_lean" && g.msg.includes("เข้าหา")) },
+    { id: "lean_back", label: "เอนออก", hit: (g) => g.code === "moved_far" || g.code === "too_far" || (g.code === "torso_lean" && g.msg.includes("ถอยหลัง")) },
+    { id: "shift", label: "ออกนอกวงรี", hit: (g) => g.code === "off_center" || g.code === "torso_move" },
+    { id: "no_face", label: "ไม่พบใบหน้า", hit: (g) => g.code === "no_face" },
+    { id: "overshoot", label: "ก้มเกิน", hit: (g, flex) => g.ok && flex !== null && cpIndex < CHECKPOINTS.length && flex > cpBandOf(cpIndex).hi },
   ];
-  const SCRIPT_LABEL = { yaw: "หันหน้า", roll: "เอียงหัว", lean_in: "เอนเข้า", lean_back: "เอนออก",
-    shift: "ออกนอกวงรี", no_face: "ปิดหน้า", overshoot: "ก้มเกิน" };
-  const ERROR_TIMEOUT_MS = 10000;
-
-  const Script = (() => {
-    let on = false, replay = false, idx = 0, phase = "do", since = 0, okSince = null, hitSince = null;
-    let results = [];
-
-    function speak(text) {
-      try {
-        if (replay || !window.speechSynthesis) return;   // เล่นซ้ำ: เงียบ
-        speechSynthesis.cancel();
-        const u = new SpeechSynthesisUtterance(text);
-        u.lang = "th-TH";
-        u.rate = 1.05;
-        speechSynthesis.speak(u);
-      } catch (_) {}
-    }
-    function show(cue, sub) {
-      scriptCue.hidden = false;
-      scriptCue.innerHTML = `${cue}${sub ? `<small>${sub}</small>` : ""}`;
-    }
-    function enterStep(i) {
-      idx = i; phase = "do"; since = performance.now(); okSince = null; hitSince = null;
-      const st = SCRIPT_STEPS[i];
-      if (!st) { scriptCue.hidden = true; return; }
-      show(`${i + 1}/${SCRIPT_STEPS.length} · ${st.cue}`, st.sub || (st.kind === "error" ? "ค้างท่าไว้จนมีเสียงยืนยัน" : ""));
-      speak(st.say);
-      Sfx.tick(1.2);
-    }
-    function record(id, ok) {
-      results.push({ id, ok });
-      if (ok) Sfx.go(); else Sfx.warn();
-    }
-    function toReturn() {
-      phase = "return"; okSince = null;
-      show("กลับท่าเดิม นั่งคอตรง", "รอจนป้ายล่างขึ้น “ระยะกำลังดี”");
-      speak("กลับท่าเดิม");
-    }
-
+  const Report = (() => {
+    let on = false;
+    let seen = new Set();
+    const since = {};
+    let line = "";
     return {
-      get active() { return on; },
-      get results() { return results; },
-      get timeoutFactor() { return on ? 3 : 1; },
-      clear() { results = []; },
-      // asReplay: เล่นคลิปที่อัดตามสคริปต์ซ้ำ — เดินสคริปต์ตามเงียบๆ แล้วสรุปผลเทียบกับตอนอัด
-      // (ไม่พูด และไม่ตั้ง Baseline เอง ใช้วินาทีจากชื่อไฟล์แทน จังหวะจะได้ตรงกับคลิป)
-      start(asReplay = false) {
-        on = true; replay = asReplay; results = [];
-        speak("เริ่มอัดวิดีโอทดสอบ");
-        enterStep(0);
-      },
-      // code: "ok" | gate code | "no_face", flex: มุมก้มเฟรมนี้ (null = ไม่มีหน้า)
-      update(code, flex) {
-        if (!on) return;
-        const st = SCRIPT_STEPS[idx];
-        if (!st) return;
+      get line() { return line; },
+      start() { on = true; seen = new Set(); line = ""; for (const k in since) delete since[k]; },
+      update(gate, flex) {
+        if (!on || state !== S.MEASURE) return;
         const now = performance.now();
-
-        if (st.kind === "until") {
-          // ขั้นแรก: ท่าปกติครบ 2 วิ -> ตั้ง Baseline ให้เอง
-          if (st.id === "baseline" && state === S.READY && !replay) {
-            if (code === "ok") { okSince ??= now; if (now - okSince > 2000) { okSince = null; beginCalibration(); } }
-            else okSince = null;
-          }
-          if (st.done()) enterStep(idx + 1);
-          return;
-        }
-
-        if (phase === "do") {
-          const hit = st.kind === "error"
-            ? st.expect.includes(code)
-            : code === "ok" && flex !== null && cpIndex < CHECKPOINTS.length && flex > cpBandOf(cpIndex).hi;
-          if (hit) { hitSince ??= now; } else hitSince = null;
-          if (hitSince !== null && now - hitSince > (st.kind === "over" ? 800 : 500)) { record(st.id, true); toReturn(); }
-          else if (now - since > ERROR_TIMEOUT_MS) { record(st.id, false); toReturn(); }
-        } else {
-          // กลับท่าเดิม: ปกติต่อเนื่อง 1 วิ (ขั้นก้มเกิน: แค่ไม่เกินแล้วก็พอ)
-          const back = st.kind === "over"
-            ? code === "ok" && flex !== null && flex <= cpBandOf(Math.min(cpIndex, CHECKPOINTS.length - 1)).hi
-            : code === "ok";
-          if (back) { okSince ??= now; if (now - okSince > 1000) enterStep(idx + 1); }
-          else okSince = null;
+        for (const c of REPORT_CASES) {
+          if (c.hit(gate, flex)) {
+            since[c.id] ??= now;
+            if (now - since[c.id] >= 300) seen.add(c.id);
+          } else delete since[c.id];
         }
       },
-      // จบรอบ: คืนข้อความสรุป (หรือ "" ถ้าไม่ได้รันสคริปต์)
+      // คืนข้อความสรุป (หรือ "" ถ้าไม่ได้เล่นวิดีโอ)
       finish() {
         if (!on) return "";
         on = false;
-        scriptCue.hidden = true;
-        try { window.speechSynthesis && speechSynthesis.cancel(); } catch (_) {}
-        const tested = SCRIPT_STEPS.filter((x) => x.kind !== "until").map((x) => x.id);
-        return tested.map((id) => {
-          const r = results.find((x) => x.id === id);
-          return `${r ? (r.ok ? "✓" : "✗") : "–"} ${SCRIPT_LABEL[id]}`;
-        }).join(" · ") + ` · checkpoint ${cpResults.length}/${CHECKPOINTS.length}`;
+        line = REPORT_CASES.map((c) => `${c.id}=${seen.has(c.id) ? "seen" : "missing"}`).join(" ")
+          + ` checkpoints=${cpResults.length}/${CHECKPOINTS.length}`;
+        return REPORT_CASES.map((c) => `${seen.has(c.id) ? "✓" : "✗"} ${c.label}`).join(" · ")
+          + ` · checkpoint ${cpResults.length}/${CHECKPOINTS.length}`;
       },
     };
   })();
@@ -2432,7 +2280,6 @@
     savedToDrive = false;
     saveError = "";
     finishedAt = null;
-    Script.clear();
     resetSweep();
     updateLogLine();
   }
@@ -2581,7 +2428,6 @@
     signModeSelect.value = "auto";
     distTolInput.value = String(CFG.DIST_REL_TOL_CM);
     usePoseSelect.value = "1";
-    recModeSelect.value = "0";
     clearFileSource();
     advancedPanel.open = false;
   }

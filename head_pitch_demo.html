@@ -66,15 +66,14 @@
       radial-gradient(75% 50% at 50% 112%, rgba(34,211,238,0.09), transparent 62%);
   }
 
-  header { padding: 36px 20px 4px; text-align: center; }
-  header h1 {
-    margin: 0 0 7px; font-size: 19px; font-weight: 600; letter-spacing: -0.02em;
-  }
-  header h1 .ver {
-    font-family: var(--mono); font-size: 13px; font-weight: 500;
+  /* ---- app bar: ชื่อ + ผู้ใช้ + เสียง + ออกจากระบบ ในแถวเดียว ------------
+     แทนหัวเว็บ 2 บรรทัด + แถบผู้ใช้เดิม คืนพื้นที่แนวตั้ง ~70px ให้ภาพกล้อง */
+  .appbar { display: flex; align-items: center; justify-content: space-between; gap: 10px; min-height: 40px; }
+  .brand { font-size: 16px; font-weight: 600; letter-spacing: -0.02em; white-space: nowrap; }
+  .brand .ver {
+    font-family: var(--mono); font-size: 12px; font-weight: 500;
     color: var(--accent); vertical-align: 2px; margin-left: 3px;
   }
-  header p { margin: 0; color: var(--muted-2); font-size: 12px; font-weight: 300; }
 
   .wrap {
     max-width: 880px; margin: 0 auto;
@@ -88,7 +87,7 @@
     /* กล้องมือถือเป็นแนวตั้ง เวทีจึงสูงกว่าจอ ดันปุ่มตกขอบล่าง
        จำกัดความสูงไว้ ภาพส่วนเกินถูก crop บน-ล่างด้วย object-fit:cover
        (canvas ใช้ขนาดและ object-fit เดียวกับ video จุดจมูกจึงยังตรงตำแหน่ง) */
-    max-height: 68vh; max-height: 68svh;
+    max-height: 74vh; max-height: 74svh;
     background: #04060A;
     border: 1px solid var(--border);
     border-radius: var(--r-lg);
@@ -103,23 +102,26 @@
   }
 
   /* กล่องลอยบนวิดีโอใช้ glass เหมือนกันหมด -> ดูเป็นระบบเดียว */
-  .angle-badge, .timer-badge, .distance-badge, .sweep-wrap {
+  .angle-badge, .timer-badge, .distance-badge, .cp-panel {
     background: rgba(10,14,22,0.62);
     -webkit-backdrop-filter: var(--glass-blur);
     backdrop-filter: var(--glass-blur);
     border: 1px solid rgba(255,255,255,0.09);
   }
 
-  .top-bar {
-    position: absolute; top: 13px; left: 13px; z-index: 5;
-    /* เว้นที่ด้านขวาให้แถบกวาดมุมเสมอ ป้ายจึงไม่มีวันมุดไปอยู่ใต้มัน */
-    right: 84px;
-    display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
-    pointer-events: none;
+  /* ---- HUD บนภาพกล้อง: บน (มุม) / กลาง (วงแหวน) / ล่าง (คำเตือน + checkpoint)
+     เรียงเป็นคอลัมน์ flex แทนการวาง absolute ทีละชิ้น -> ไม่มีทางทับกันเอง
+     ไม่ว่าเวทีจะสูงหรือเตี้ย และไม่ต้องจองขอบไว้ล่วงหน้าแบบเดิม */
+  .hud {
+    position: absolute; inset: 0; z-index: 6; pointer-events: none;
+    display: flex; flex-direction: column; gap: 10px; padding: 14px;
   }
+  .hud-center { position: relative; flex: 1; min-height: 0; }
+  .hud-bottom { display: flex; flex-direction: column; align-items: center; gap: 9px; }
+  .top-bar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
   .angle-badge {
-    padding: 9px 17px; border-radius: var(--pill);
-    font-family: var(--mono); font-size: 20px; font-weight: 700;
+    padding: 8px 18px; border-radius: var(--pill);
+    font-family: var(--mono); font-size: 28px; font-weight: 700;
     font-variant-numeric: tabular-nums; letter-spacing: -0.025em;
     transition: color 0.3s var(--ease), box-shadow 0.3s var(--ease), opacity 0.25s var(--ease), visibility 0.25s;
   }
@@ -127,7 +129,7 @@
   .angle-badge.warn { color: var(--warn);   box-shadow: 0 0 24px -8px rgba(251,113,133,0.65); }
   /* ไม่พบใบหน้า = ไม่มีมุมให้แสดง ซ่อนป้ายไปเลย (ป้ายล่างบอกเหตุผลอยู่แล้ว)
      ใช้ visibility แทน display ป้ายเวลาข้างๆ จึงไม่กระโดดตำแหน่ง */
-  .angle-badge.no-face { visibility: hidden; opacity: 0; }
+  .angle-badge.no-face, .angle-badge.off { visibility: hidden; opacity: 0; }
 
   .timer-badge {
     padding: 7px 13px; border-radius: var(--pill);
@@ -138,23 +140,19 @@
   .timer-badge.hot { color: var(--amber); }
   .timer-badge[hidden] { display: none; }
 
+  /* ป้ายระยะ/คำเตือน: ที่เดียวที่บอกสาเหตุเวลาหยุดนับ จึงต้องอ่านออกจากระยะแขน */
   .distance-badge {
-    position: absolute; bottom: 14px; left: 50%; transform: translateX(-50%); z-index: 5;
-    padding: 9px 20px; border-radius: var(--pill);
-    font-size: 12.5px; font-weight: 500; text-align: center;
-    /* เว้นที่ให้แถบมุมด้านขวาทั้งสองฝั่ง (ป้ายอยู่กึ่งกลาง) ข้อความยาวจะตัดบรรทัด
-       แทนที่จะวิ่งไปทับแถบมุมบนจอแคบ */
-    width: max-content; max-width: calc(100% - 2 * 92px);
-    transition: color 0.3s var(--ease);
+    padding: 9px 20px; border-radius: 18px;
+    font-size: 14px; font-weight: 500; text-align: center;
+    max-width: 100%;
+    transition: color 0.3s var(--ease), background 0.3s var(--ease), border-color 0.3s var(--ease);
   }
   .distance-badge.neutral { color: var(--muted); }
-  .distance-badge.bad     { color: var(--warn); }
+  .distance-badge.bad {
+    color: #FFE4E8; font-weight: 600;
+    background: rgba(190,40,70,0.55); border-color: rgba(251,113,133,0.6);
+  }
   .distance-badge.good    { color: var(--accent); }
-  /* ตอน countdown ขึ้น = โหมดโฟกัส: ซ่อนแค่ป้ายบน (มุมอยู่ในวงแหวนแล้ว)
-     ป้ายระยะด้านล่าง "ไม่ซ่อน" เพราะเป็นที่เดียวที่ใช้แจ้งเตือนท่าทาง/ระยะ
-     คำเตือนจึงขึ้นตำแหน่งเดิมเสมอ ไม่กระโดดไปกลางจอตอนกำลังค้าง */
-  .stage.focus .top-bar { opacity: 0; }
-  .top-bar { transition: opacity 0.25s var(--ease); }
 
   /* preserveAspectRatio="meet" -> ย่อ/ขยายเท่ากันทุกทิศ วงรีคงรูปหน้าคน
      (เดิมใช้ "none" พอเวทีเป็นแนวตั้งบนมือถือ วงรีถูกยืดเป็นเส้นยาวผอม) */
@@ -170,28 +168,24 @@
   }
 
   /* ---- countdown overlay ------------------------------------------------- */
-  .countdown {
-    position: absolute; inset: 0; z-index: 8; pointer-events: none;
-    display: flex; flex-direction: column; align-items: center; justify-content: center;
-    gap: 3%;
-    /* สำรองขอบบน-ล่างไว้ให้ป้ายที่ลอยอยู่ วงแหวนจึงไม่ไปทับ
-       (สมมาตรเพื่อให้ยังอยู่กึ่งกลางเวทีจริงๆ) */
-    padding: 54px 10px;
+  .countdown { position: absolute; inset: 0; animation: fadeIn 0.3s var(--ease); }
+  .countdown[hidden] { display: none; }
+  /* หรี่ภาพเฉพาะตอนนับถอยหลังตั้ง baseline — ตอนค้างมุมไม่หรี่ ผู้ใช้ต้องเห็นตัวเอง */
+  .dim-layer {
+    position: absolute; inset: 0; z-index: 5; pointer-events: none;
     background: rgba(4,6,10,0.45);
     -webkit-backdrop-filter: blur(4px); backdrop-filter: blur(4px);
-    animation: fadeIn 0.3s var(--ease);
+    opacity: 0; transition: opacity 0.3s var(--ease);
   }
-  .countdown[hidden] { display: none; }
-  /* โหมด hold ไม่บังภาพ เพราะผู้ใช้ต้องเห็นตัวเองตอนค้างมุม */
-  .countdown.hold { background: transparent; -webkit-backdrop-filter: none; backdrop-filter: none; }
+  .stage.dim .dim-layer { opacity: 1; }
 
   /* ขนาดอิง "ความสูงของเวที" ไม่ใช่ px ตายตัว
      เวทีเตี้ย (กล้อง 16:9 บนจอแคบ) วงแหวนจึงหดเองและไม่ไปชนป้ายล่าง
      ป้ายคำสั่งเป็น flow item ใต้ .cd-dial จึงอยู่ใต้วงแหวนเสมอโดยไม่ต้องคำนวณระยะ */
   .cd-dial {
-    position: relative; flex: none;
-    /* min-height กันไม่ให้หดจนอ่านไม่ออกบนเวทีเตี้ยมากๆ */
-    height: min(52%, 208px); min-height: 84px; aspect-ratio: 1;
+    position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+    /* ขนาดอิงพื้นที่กลาง HUD ที่เหลือจริง จึงไม่ทับป้ายบน/ล่าง */
+    height: min(92%, 220px); min-height: 80px; aspect-ratio: 1;
     container-type: size;
     display: flex; align-items: center; justify-content: center;
   }
@@ -220,75 +214,67 @@
   .countdown.warn .cd-num { color: var(--warn); }
   @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
 
-  /* ---- sweep gauge ------------------------------------------------------- */
-  .sweep-wrap {
-    position: absolute; top: 10%; right: 12px; z-index: 6;
-    width: 74px; height: 80%;
-    display: none; flex-direction: column; align-items: center;
-    border-radius: var(--r-md); padding: 13px 6px;
+  /* ---- checkpoint panel ------------------------------------------------
+     แทนแถบแนวตั้ง 64-74px ข้างจอที่เล็กจนมองไม่เห็นจากระยะแขน
+     เป็นปุ่มเม็ดใหญ่ 5 เม็ดเต็มความกว้างภาพ: ผ่านแล้ว / เป้าปัจจุบัน / ยังไม่ถึง */
+  .cp-panel {
+    width: 100%; max-width: 560px;
+    border-radius: var(--r-md); padding: 10px 10px 11px;
   }
-  .sweep-track {
-    position: relative; width: 13px; flex: 1;
-    background: rgba(255,255,255,0.1);
-    border-radius: var(--pill);
+  .cp-panel[hidden] { display: none; }
+  .cp-head {
+    display: flex; justify-content: space-between; align-items: baseline; gap: 8px;
+    padding: 0 4px 8px; font-size: 13px; color: var(--muted);
   }
-  .sweep-fill {
-    position: absolute; top: 0; left: 0; width: 100%; height: 0%;
-    border-radius: var(--pill);
-    background: linear-gradient(180deg, var(--accent), var(--accent-2));
-    box-shadow: 0 0 18px -3px rgba(34,211,238,0.7);
-    transition: height 0.2s var(--ease);
+  .cp-head b { color: var(--text); font-weight: 600; }
+  .cp-head .paused { color: var(--warn); font-weight: 600; }
+  .cp-pills { display: grid; grid-template-columns: repeat(var(--n, 5), 1fr); gap: 7px; }
+  .cp-pill {
+    position: relative; overflow: hidden; isolation: isolate;
+    height: 46px; border-radius: 14px;
+    display: flex; align-items: center; justify-content: center;
+    font-family: var(--mono); font-size: 17px; font-weight: 700;
+    color: var(--muted-2);
+    background: rgba(255,255,255,0.06); border: 1.5px solid rgba(255,255,255,0.1);
+    transition: color 0.25s var(--ease), background 0.25s var(--ease),
+                border-color 0.25s var(--ease), box-shadow 0.25s var(--ease);
   }
-  /* แถบเป้าหมาย = ช่วงมุมที่ต้องค้างของ checkpoint ปัจจุบัน */
-  .sweep-band {
-    position: absolute; left: -4px; right: -4px; top: 0; height: 0;
-    border-radius: 7px;
-    background: rgba(255,255,255,0.12);
-    box-shadow: inset 0 0 0 1px rgba(255,255,255,0.28);
-    transition: top 0.22s var(--ease), height 0.22s var(--ease),
-                background 0.2s var(--ease), box-shadow 0.2s var(--ease);
+  /* แถบเติมในเม็ดปัจจุบัน = ก้มเข้าใกล้เป้าแค่ไหน (นับจากจุดที่ผ่านล่าสุด) */
+  .cp-pill > i {
+    position: absolute; inset: 0 auto 0 0; z-index: -1; width: 0;
+    background: rgba(34,211,238,0.22);
+    transition: width 0.12s linear, background 0.2s var(--ease);
   }
-  .sweep-band.dwell {
-    box-shadow: inset 0 0 0 1px rgba(34,211,238,0.75), 0 0 16px -3px rgba(34,211,238,0.6);
+  .cp-pill.current { color: #fff; border-color: rgba(255,255,255,0.55); }
+  .cp-pill.current.holding {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px rgba(34,211,238,0.25), 0 0 22px -4px rgba(34,211,238,0.8);
+    animation: holdGlow 1s var(--ease) infinite;
   }
-  /* ไล่เต็มกรอบตามเวลาที่ค้าง = การเคลื่อนไหวต่อเนื่องที่หายไปตอนเปลี่ยนเป็น checkpoint
-     (แถบหลักกระโดดทีละขั้น 5° ไม่ไหลเหมือนเดิมเพราะเป็นระบบจุดแล้ว) */
-  .sweep-band > i {
-    position: absolute; left: 0; right: 0; bottom: 0; height: 0;
-    border-radius: 6px; display: block;
-    background: rgba(34,211,238,0.5);
-    transition: height 0.1s linear;
+  .cp-pill.current.holding > i { background: rgba(34,211,238,0.45); }
+  .cp-pill.current.over { border-color: var(--amber); color: var(--amber); }
+  .cp-pill.done {
+    color: #04131A; border-color: transparent;
+    background: linear-gradient(135deg, var(--accent), var(--accent-2));
   }
-  .sweep-ticks { position: absolute; inset: 0; }
-  .sweep-marker {
-    position: absolute; left: -4px; top: 0%;
-    width: 21px; height: 4px; border-radius: var(--pill);
-    background: #fff; box-shadow: 0 0 12px rgba(255,255,255,0.65);
-    transition: top 0.08s var(--ease);
+  .cp-pill.done::after { content: "✓"; margin-left: 4px; font-size: 14px; }
+  .cp-pill.just-done { animation: pillPop 0.45s var(--ease); }
+  @keyframes pillPop { 0% { transform: scale(1); } 40% { transform: scale(1.12); } 100% { transform: scale(1); } }
+  @keyframes holdGlow { 50% { box-shadow: 0 0 0 5px rgba(34,211,238,0.12), 0 0 26px -2px rgba(34,211,238,0.9); } }
+
+  /* ปุ่มไอคอน (เสียง) */
+  button.icon-btn {
+    flex: none; width: 38px; height: 38px; padding: 0;
+    display: inline-flex; align-items: center; justify-content: center;
+    background: var(--surface); color: var(--text);
+    border: 1px solid var(--border); box-shadow: none;
   }
-  .sweep-tick-line { position: absolute; left: -3px; width: 19px; height: 1px; background: rgba(255,255,255,0.28); }
-  /* จุดที่ค้างผ่านแล้วเป็นสีเน้น เห็นความคืบหน้าได้จากขีดโดยตรง */
-  .sweep-tick-line.done { background: var(--accent); height: 2px; }
-  .sweep-tick-text.done { color: var(--accent); font-weight: 700; }
-  .sweep-tick-text.target { color: #fff; font-weight: 700; }
-  .sweep-tick-line.target { background: #fff; height: 2px; }
-  /* right:100% = วางชิดซ้ายของ track พอดี ป้ายจึงอยู่ในกล่องเสมอ
-     ไม่ว่ากล่องจะกว้างเท่าไร (ของเดิมใช้ left:20px แล้วล้นออกนอกกล่อง) */
-  .sweep-tick-text {
-    position: absolute; right: 100%; margin-right: 8px;
-    font-family: var(--mono); font-size: 9.5px; font-weight: 500;
-    color: var(--muted-2); white-space: nowrap; transform: translateY(-50%);
-  }
-  .sweep-label {
-    margin-top: 12px; font-size: 10px; font-weight: 300;
-    color: var(--muted); text-align: center; line-height: 1.45;
-    text-wrap: balance;
-  }
-  .sweep-label b {
-    display: block; margin-top: 4px; white-space: nowrap;
-    font-family: var(--mono); font-size: 13px; font-weight: 700; color: var(--accent);
-  }
-  .sweep-label.paused b { color: var(--warn); }
+  button.icon-btn:hover:not(:disabled) { background: var(--surface-hi); transform: none; box-shadow: none; }
+  button.icon-btn svg { width: 19px; height: 19px; }
+  button.icon-btn[aria-pressed="false"] { color: var(--muted-2); }
+  button.icon-btn .snd-off { display: none; }
+  button.icon-btn[aria-pressed="false"] .snd-on { display: none; }
+  button.icon-btn[aria-pressed="false"] .snd-off { display: inline; }
 
   /* ---- step hint (คำสั่งทีละขั้น — เป็น element หลักที่ผู้ใช้ต้องอ่าน) ---- */
   .step-hint {
@@ -504,45 +490,44 @@
 
   /* ---- แถบผู้ใช้ด้านบน ---------------------------------------------------- */
   .session-bar {
-    display: flex; align-items: center; justify-content: space-between; gap: 10px;
+    display: flex; align-items: center; gap: 8px; min-width: 0;
     font-size: 13px; color: var(--muted);
   }
   .session-bar[hidden] { display: none; }
+  .session-who { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .session-who b { color: var(--text); font-weight: 600; }
   .session-who.test b { color: var(--amber); }
-  .session-bar button { flex: none; padding: 8px 15px; font-size: 12.5px; }
+  .session-bar button:not(.icon-btn) { flex: none; padding: 9px 14px; font-size: 12.5px; }
   .save-fallback { display: flex; justify-content: center; margin-top: -8px; }
 
   @media (max-width: 620px) {
-    header { padding: 16px 16px 2px; }
-    header h1 { font-size: 17px; margin-bottom: 4px; }
-    /* ตัดชื่อเทคนิคออก เหลือแค่ข้อความเรื่องความเป็นส่วนตัว -> บรรทัดเดียว */
-    header p .tech { display: none; }
-    header p { font-size: 11px; }
-    .wrap { padding: 14px 14px 36px; gap: 12px; }
-    /* ความสูงเวที = จอ - (หัวเว็บ + แถบผู้ใช้ + คำสั่ง 2 บรรทัด + ปุ่ม + ช่องไฟ ≈ 305px)
+    .wrap { padding: 10px 12px 32px; gap: 10px; }
+    .brand { font-size: 15px; }
+    .brand .ver { display: none; }
+    /* ความสูงเวที = จอ - (app bar + คำสั่ง 2 บรรทัด + ปุ่ม + ช่องไฟ ≈ 225px)
        ปุ่ม "ตั้ง Baseline" จึงอยู่ในจอเสมอโดยไม่ต้องเลื่อน
        ใช้ svh = ความสูงจอตอนแถบเครื่องมือ Safari / in-app browser แสดงอยู่
        max(260px, …) กันไม่ให้หดจนใช้ไม่ได้บนจอที่เตี้ยมาก */
     .stage {
       border-radius: var(--r-md);
-      max-height: max(260px, calc(100vh - 305px));
-      max-height: max(260px, calc(100svh - 305px));
+      max-height: max(300px, calc(100vh - 225px));
+      max-height: max(300px, calc(100svh - 225px));
     }
     button { flex: 1 1 42%; padding: 14px 16px; font-size: 14px; }
     /* ปุ่มเด่นบนจอแคบ: ใช้ขนาดเท่าปุ่มอื่น (แสง pulse พอให้เด่นแล้ว)
        padding/ฟอนต์แบบเดสก์ท็อปทำให้ "ดาวน์โหลด CSV" ตัดเป็น 2 บรรทัด
        ปุ่มสูงขึ้นเกือบเท่าตัวจนตกขอบจอล่าง */
     button.cta { padding: 14px 16px; font-size: 14.5px; white-space: nowrap; }
-    .distance-badge { max-width: calc(100% - 2 * 80px); padding: 8px 14px; border-radius: 18px; }
-    .top-bar { right: 74px; top: 11px; left: 11px; gap: 6px; }
-    .angle-badge { font-size: 15.5px; padding: 7px 13px; }
-    .timer-badge { font-size: 10.5px; padding: 6px 11px; }
-    .sweep-wrap { width: 64px; right: 8px; padding: 11px 5px; }
-    .sweep-tick-text { margin-right: 6px; font-size: 9px; }
-    .countdown { padding: 46px 8px; }
+    .hud { padding: 10px; gap: 8px; }
+    .distance-badge { padding: 8px 14px; font-size: 13.5px; }
+    .angle-badge { font-size: 24px; padding: 6px 15px; }
+    .timer-badge { font-size: 11px; padding: 6px 11px; }
+    .cp-panel { padding: 8px 8px 9px; }
+    .cp-pills { gap: 5px; }
+    .cp-pill { height: 44px; font-size: 15px; border-radius: 12px; }
+    .cp-pill.done::after { margin-left: 2px; font-size: 12px; }
     .adv-grid { grid-template-columns: 1fr; }
-    .step-hint { font-size: 13.5px; padding: 15px 17px; }
+    .step-hint { font-size: 14px; padding: 12px 15px; min-height: 0; gap: 12px; }
   }
 
   /* เคารพการตั้งค่าของผู้ใช้ที่ปิด animation (ป้องกันอาการเวียนหัว) */
@@ -588,17 +573,22 @@
   try { if (localStorage.getItem("nf_account")) document.getElementById("login").hidden = true; } catch (_) {}
 </script>
 
-<header>
-  <h1>Neck Flexion Demo <span class="ver">v2</span></h1>
-  <p><span class="tech">MediaPipe Face + Pose Landmarker — </span>ประมวลผลบนเครื่อง ไม่มีการส่งภาพออกนอกเบราว์เซอร์</p>
-</header>
-
 <div class="wrap">
 
-  <div class="session-bar" id="sessionBar" hidden>
-    <span class="session-who" id="sessionWho"></span>
-    <button type="button" id="btnLogout" class="secondary">ออกจากระบบ</button>
-  </div>
+  <header class="appbar">
+    <div class="brand">Neck Flexion <span class="ver">v2</span></div>
+    <div class="session-bar" id="sessionBar" hidden>
+      <span class="session-who" id="sessionWho"></span>
+      <button type="button" class="icon-btn" id="btnSound" aria-pressed="true" aria-label="เปิด/ปิดเสียง" title="เปิด/ปิดเสียง">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M11 5 6 9H3v6h3l5 4z"/>
+          <g class="snd-on"><path d="M15.5 8.5a5 5 0 0 1 0 7"/><path d="M18.5 5.5a9 9 0 0 1 0 13"/></g>
+          <g class="snd-off"><path d="m16 9 6 6"/><path d="m22 9-6 6"/></g>
+        </svg>
+      </button>
+      <button type="button" id="btnLogout" class="secondary">ออกจากระบบ</button>
+    </div>
+  </header>
 
   <div class="stage" id="stage">
     <video id="video" autoplay playsinline muted></video>
@@ -609,34 +599,36 @@
         fill="none" stroke="#64748B" stroke-width="2.5" stroke-dasharray="5 6" stroke-linecap="round" />
     </svg>
 
-    <!-- ป้ายบนอยู่ในแถว flex เดียวกัน จึงดันกันเองและทับกันไม่ได้
-         (ของเดิมวางด้วย absolute ทั้งคู่ -> บนจอแคบมันซ้อนกัน) -->
-    <div class="top-bar">
-      <div class="angle-badge ok" id="angleBadge">รอเปิดกล้อง</div>
-      <div class="timer-badge" id="timerBadge" hidden>0.0 วิ</div>
-    </div>
-    <div class="distance-badge neutral" id="distanceBadge">รอตรวจจับใบหน้า</div>
+    <div class="dim-layer"></div>
 
-    <!-- countdown overlay: ใช้ทั้ง CALIB (3-2-1) และ HOLD (ค้างมุมไว้) -->
-    <div class="countdown" id="countdown" hidden>
-      <div class="cd-dial">
-        <svg class="cd-ring" viewBox="0 0 120 120">
-          <circle class="cd-ring-bg" cx="60" cy="60" r="52"></circle>
-          <circle class="cd-ring-fg" id="cdRingFg" cx="60" cy="60" r="52"></circle>
-        </svg>
-        <div class="cd-num" id="cdNum">3</div>
+    <div class="hud">
+      <div class="top-bar">
+        <!-- ซ่อนจนกว่าจะมีมุมให้แสดง (off) — ผู้ใช้ทั่วไปเห็นหลังตั้ง baseline -->
+        <div class="angle-badge ok off" id="angleBadge"></div>
+        <div class="timer-badge" id="timerBadge" hidden>0.0 วิ</div>
       </div>
-    </div>
 
-    <div class="sweep-wrap" id="sweepWrap">
-      <div class="sweep-track">
-        <div class="sweep-band" id="sweepBand"><i id="sweepBandFill"></i></div>
-        <div class="sweep-fill" id="sweepFill"></div>
-        <div class="sweep-marker" id="sweepMarker"></div>
-        <!-- ขีดบอก checkpoint สร้างจาก JS ตาม CP_STEP -->
-        <div class="sweep-ticks" id="sweepTicks"></div>
+      <!-- วงแหวน: ใช้ทั้ง CALIB (3-2-1) และ HOLD (ค้างมุมไว้) -->
+      <div class="hud-center">
+        <div class="countdown" id="countdown" hidden>
+          <div class="cd-dial">
+            <svg class="cd-ring" viewBox="0 0 120 120">
+              <circle class="cd-ring-bg" cx="60" cy="60" r="52"></circle>
+              <circle class="cd-ring-fg" id="cdRingFg" cx="60" cy="60" r="52"></circle>
+            </svg>
+            <div class="cd-num" id="cdNum">3</div>
+          </div>
+        </div>
       </div>
-      <div class="sweep-label" id="sweepLabel">ตั้ง baseline ก่อน</div>
+
+      <div class="hud-bottom">
+        <div class="distance-badge neutral" id="distanceBadge">รอตรวจจับใบหน้า</div>
+        <div class="cp-panel" id="cpPanel" hidden>
+          <div class="cp-head"><span id="cpStatus"></span><span id="cpNext"></span></div>
+          <!-- เม็ด checkpoint สร้างจาก JS ตาม CHECKPOINTS -->
+          <div class="cp-pills" id="cpPills"></div>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -695,7 +687,8 @@
 
       <p><b>ขั้นตอน:</b> กดเปิดกล้อง → ขยับตัวให้ใบหน้าอยู่ในวงรีและป้ายล่างขึ้น “ระยะกำลังดี” →
       กด “ตั้ง Baseline” แล้ว<b>วางมือลง</b> นั่งคอตรงนิ่งๆ ระบบนับถอยหลัง 3 วิ แล้วเก็บท่านี้เป็นศูนย์ →
-      ค่อยๆ ก้มลง แถบขวาจะขึ้นตามมุมที่<b>ค้างไว้ได้จริง</b> (ค้างแต่ละจุด ~2 วิ ถึงนับ) →
+      ค่อยๆ ก้มลงทีละจุด (5° 10° 15° 20° 25° ที่แถบใต้ภาพ) แล้ว<b>ค้างไว้</b>แต่ละจุด ~2 วิ
+      — มีเสียงติ๊กระหว่างค้าง และเสียง “ติ๊ง” เมื่อผ่านแต่ละจุด ไม่ต้องคอยมองจอ (ปิดเสียงได้ที่ปุ่มลำโพงมุมบน) →
       กด “จบการวัด” เมื่อไหร่ก็ได้ แล้วกด <b>“บันทึกลง Drive”</b> (ไม่กด = ไม่บันทึก)<span class="admin-only">
       — โหมดทดสอบของ admin จะดาวน์โหลดไฟล์ไว้ในเครื่องแทน</span></p>
 
@@ -786,6 +779,76 @@
   };
   const ANGLE_MAX = CFG.ANGLE_LIMIT + CFG.ANGLE_BUFFER;
 
+  /* =====================================================================
+     SOUND — สังเคราะห์ด้วย Web Audio ไม่ต้องโหลดไฟล์เสียง
+     ---------------------------------------------------------------------
+     ผู้ใช้ตั้งโทรศัพท์ห่าง 1 ช่วงแขน และตอนก้มลึกสายตาไม่ได้อยู่ที่จอ
+     จึงบอกจังหวะด้วยเสียงแทนการมอง:
+       ติ๊ก      = นับถอยหลังตั้ง baseline / ทุก 0.5 วิระหว่างค้าง
+       ติ๊ง-ดิ๊ง = ผ่าน checkpoint (โน้ตสูงขึ้นทีละจุด ฟังก็รู้ว่าถึงจุดไหน)
+       ตุ้บ-ตุ้บ = หยุดนับ (ดูคำเตือนใต้ภาพ)
+       เพลงสั้น  = ครบทุกจุด
+     ===================================================================== */
+  const SOUND_KEY = "nf_sound";
+  const Sfx = (() => {
+    let ctx = null;
+    let enabled = true;
+    try { enabled = localStorage.getItem(SOUND_KEY) !== "0"; } catch (_) {}
+
+    // ต้องเรียกจาก event ที่ผู้ใช้แตะจอ ไม่งั้น iOS/Safari ไม่ยอมให้เล่นเสียง
+    function unlock() {
+      try {
+        // iOS 17+: ให้เสียงดังแม้เปิดโหมดเงียบ — เสียงนี้เป็นคำแนะนำระหว่างวัด ไม่ใช่เสียงแจ้งเตือน
+        if (navigator.audioSession) navigator.audioSession.type = "playback";
+        if (!ctx) ctx = new (window.AudioContext || window.webkitAudioContext)();
+        if (ctx.state === "suspended") ctx.resume();
+      } catch (_) { ctx = null; }
+    }
+    function tone(freq, at, dur, { type = "sine", gain = 0.22 } = {}) {
+      const t0 = ctx.currentTime + at;
+      const osc = ctx.createOscillator();
+      const g = ctx.createGain();
+      osc.type = type;
+      osc.frequency.setValueAtTime(freq, t0);
+      g.gain.setValueAtTime(0.0001, t0);
+      g.gain.exponentialRampToValueAtTime(gain, t0 + 0.012);
+      g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+      osc.connect(g).connect(ctx.destination);
+      osc.start(t0);
+      osc.stop(t0 + dur + 0.03);
+    }
+    function play(fn) {
+      if (!enabled || !ctx || ctx.state !== "running") return;
+      try { fn(); } catch (_) {}
+    }
+    const STEPS = [659.25, 739.99, 830.61, 987.77, 1108.73]; // E5 F#5 G#5 B5 C#6 — ไล่ขึ้นตามจุด
+    return {
+      unlock,
+      get enabled() { return enabled; },
+      setEnabled(v) {
+        enabled = v;
+        try { localStorage.setItem(SOUND_KEY, v ? "1" : "0"); } catch (_) {}
+      },
+      tick: (k = 1) => play(() => tone(880 * k, 0, 0.07, { type: "triangle", gain: 0.16 })),
+      go: () => play(() => { tone(659.25, 0, 0.12); tone(987.77, 0.11, 0.24); }),
+      checkpoint: (i) => play(() => {
+        const f = STEPS[Math.min(i, STEPS.length - 1)];
+        tone(f, 0, 0.13, { gain: 0.26 });
+        tone(f * 1.5, 0.1, 0.32, { gain: 0.22 });
+      }),
+      warn: () => play(() => {
+        tone(311.13, 0, 0.16, { type: "square", gain: 0.05 });
+        tone(233.08, 0.18, 0.26, { type: "square", gain: 0.05 });
+      }),
+      done: () => play(() => { tone(783.99, 0.3, 0.16); tone(659.25, 0.46, 0.32); }),
+      // เริ่มช้ากว่าเสียง checkpoint สุดท้ายเล็กน้อย ไม่ให้สองเสียงทับกัน
+      complete: () => play(() => {
+        [523.25, 659.25, 783.99, 1046.5].forEach((f, i) =>
+          tone(f, 0.4 + i * 0.11, i === 3 ? 0.55 : 0.16, { gain: 0.24 }));
+      }),
+    };
+  })();
+
   /* ---------------------------------------------------------------------
      CHECKPOINT ทุก CP_STEP องศา — ต้องค้างทีละจุด ไล่ตามลำดับ
      ---------------------------------------------------------------------
@@ -843,13 +906,11 @@
   const cdRingFg = document.getElementById("cdRingFg");
   const cdNum = document.getElementById("cdNum");
 
-  const sweepWrap = document.getElementById("sweepWrap");
-  const sweepFill = document.getElementById("sweepFill");
-  const sweepBand = document.getElementById("sweepBand");
-  const sweepBandFill = document.getElementById("sweepBandFill");
-  const sweepTicks = document.getElementById("sweepTicks");
-  const sweepMarker = document.getElementById("sweepMarker");
-  const sweepLabel = document.getElementById("sweepLabel");
+  const cpPanel = document.getElementById("cpPanel");
+  const cpPills = document.getElementById("cpPills");
+  const cpStatus = document.getElementById("cpStatus");
+  const cpNext = document.getElementById("cpNext");
+  const btnSound = document.getElementById("btnSound");
 
 
   const stepHint = document.getElementById("stepHint");
@@ -875,36 +936,37 @@
   const distTolInput = document.getElementById("distTol");
   const usePoseSelect = document.getElementById("usePose");
 
-  // สร้างขีดบอกตำแหน่ง 0° และทุก checkpoint (บนลงล่าง: 0% = 0°)
-  const tickEls = [];
-  (function buildTicks() {
-    const mk = (deg) => {
-      const top = (deg / GAUGE_MAX) * 100;
-      const line = document.createElement("div");
-      line.className = "sweep-tick-line";
-      line.style.top = `${top}%`;
-      const text = document.createElement("div");
-      text.className = "sweep-tick-text";
-      text.style.top = `${top}%`;
-      text.textContent = `${deg}°`;
-      sweepTicks.appendChild(line);
-      sweepTicks.appendChild(text);
-      return { deg, line, text };
-    };
-    mk(0);
-    CHECKPOINTS.forEach((d) => tickEls.push(mk(d)));
+  // เม็ด checkpoint หนึ่งเม็ดต่อหนึ่งจุด
+  const pillEls = [];
+  (function buildPills() {
+    cpPills.style.setProperty("--n", CHECKPOINTS.length);
+    CHECKPOINTS.forEach((deg) => {
+      const el = document.createElement("div");
+      el.className = "cp-pill";
+      const fill = document.createElement("i");
+      const label = document.createElement("span");
+      label.textContent = `${deg}°`;
+      el.append(fill, label);
+      cpPills.appendChild(el);
+      pillEls.push({ el, fill });
+    });
   })();
 
-  // ทาสีขีดตามสถานะ: ผ่านแล้ว / เป้าหมายปัจจุบัน / ยังไม่ถึง
+  // ทาสีเม็ดตามสถานะ: ผ่านแล้ว / เป้าหมายปัจจุบัน / ยังไม่ถึง
   function renderTicks() {
-    tickEls.forEach((t, i) => {
-      const done = i < cpIndex;
-      const target = i === cpIndex;
-      t.line.classList.toggle("done", done);
-      t.text.classList.toggle("done", done);
-      t.line.classList.toggle("target", target);
-      t.text.classList.toggle("target", target);
+    pillEls.forEach((p, i) => {
+      p.el.classList.toggle("done", i < cpIndex);
+      p.el.classList.toggle("current", i === cpIndex);
+      if (i !== cpIndex) {
+        p.el.classList.remove("holding", "over");
+        p.fill.style.width = "0%";
+      }
     });
+  }
+
+  function setCpHead(statusHtml, nextHtml) {
+    cpStatus.innerHTML = statusHtml;
+    cpNext.innerHTML = nextHtml;
   }
 
   const RING_C = 2 * Math.PI * 52; // เส้นรอบวงของ progress ring
@@ -1047,6 +1109,10 @@
   let lastMarkerDeg = 0;    // มุมล่าสุดที่วาดเข็มไว้ ใช้ค้างตำแหน่งตอนหลุดเฟรม
   let lastHintKey = "";     // กันไม่ให้เขียน innerHTML ทุกเฟรมโดยไม่จำเป็น
   let sweepComplete = false;
+  let holdTicks = 0;        // ติ๊กเสียงระหว่างค้างไปแล้วกี่ครั้ง
+  let pauseSince = null;    // เริ่มหยุดนับตั้งแต่เมื่อไร (ใช้หน่วงเสียงเตือน)
+  let pauseWarned = false;
+  let calibLastBeep = null; // วินาทีล่าสุดที่ติ๊กตอนนับถอยหลัง baseline (-1 = เพิ่งถูกรีสตาร์ท)
 
   // session / log
   let sessionStartMs = null;
@@ -1073,10 +1139,8 @@
 
   function showCountdown(num, progress, opts = {}) {
     countdown.hidden = false;
-    // ใส่ class ที่ stage ตรงๆ (แทนที่จะให้ CSS ดักด้วย :has([hidden]))
-    // เพราะสถานะ "โฟกัส" เป็นเรื่องของ state machine ไม่ใช่ผลข้างเคียงของ
-    // attribute hidden — อ่านง่ายกว่าและ debug ง่ายกว่าเวลา UI ไม่ตรงสถานะ
-    stage.classList.add("focus");
+    // หรี่ภาพเฉพาะตอนนับถอยหลังตั้ง baseline (ไม่ใช่ตอนค้างมุม)
+    stage.classList.toggle("dim", !opts.hold);
     countdown.classList.toggle("hold", !!opts.hold);
     countdown.classList.toggle("warn", !!opts.warn);
     cdNum.textContent = num;
@@ -1085,7 +1149,7 @@
   }
   function hideCountdown() {
     countdown.hidden = true;
-    stage.classList.remove("focus");
+    stage.classList.remove("dim");
   }
 
   function setState(next) {
@@ -1094,7 +1158,7 @@
       case S.IDLE:
         btnPrimary.textContent = "เปิดกล้อง";
         btnPrimary.disabled = false;
-        sweepWrap.style.display = "none";
+        cpPanel.hidden = true;
         timerBadge.hidden = true;
         hideCountdown();
         setHint('กด <b>“เปิดกล้อง”</b> เพื่อเริ่ม');
@@ -1107,7 +1171,7 @@
       case S.READY:
         btnPrimary.textContent = "ตั้ง Baseline";
         btnPrimary.disabled = false;
-        sweepWrap.style.display = "none";
+        cpPanel.hidden = true;
         timerBadge.hidden = true;
         hideCountdown();
         setHint("ตั้งโทรศัพท์ให้นิ่ง ขยับตัวจนป้ายล่างขึ้น <b>“ระยะกำลังดี”</b> แล้วนั่งคอตรง → กด <b>“ตั้ง Baseline”</b>");
@@ -1115,7 +1179,7 @@
       case S.CALIB:
         btnPrimary.textContent = "ยกเลิก";
         btnPrimary.disabled = false;
-        sweepWrap.style.display = "none";
+        cpPanel.hidden = true;
         timerBadge.hidden = true;
         lastHintKey = "";
         setMeasureHint("calib", CALIB_HINT, "blocked");
@@ -1123,7 +1187,7 @@
       case S.MEASURE:
         btnPrimary.textContent = "จบการวัด";
         btnPrimary.disabled = false;
-        sweepWrap.style.display = "flex";
+        cpPanel.hidden = false;
         timerBadge.hidden = false;
         setHint(`ก้มลงทีละขั้น แล้ว<b>ค้างไว้</b>ที่ทุกๆ ${CFG.CP_STEP}° จนวงแหวนเต็ม`);
         break;
@@ -1387,34 +1451,20 @@
   }
 
   /* =====================================================================
-     SWEEP GAUGE
+     CHECKPOINT PANEL — เติมเม็ดปัจจุบันตามมุมที่ก้มเข้าใกล้เป้า
      ===================================================================== */
   function renderSweep(flexionNow, dwellP = 0) {
     lastMarkerDeg = flexionNow;
-    sweepMarker.style.top = `${Math.min(1, Math.max(0, flexionNow / GAUGE_MAX)) * 100}%`;
-
-    const allDone = cpIndex >= CHECKPOINTS.length;
-    if (allDone) {
-      // ผ่านครบแล้วเติมเต็มแถบ — เดิมค้างที่ 83% (25/30) ทำให้ดูเหมือนยังไม่จบ
-      sweepFill.style.height = "100%";
-      sweepBand.style.height = "0%";
-      sweepBand.classList.remove("dwell");
-      sweepBandFill.style.height = "0%";
-      return;
-    }
-
-    // เติมถึง checkpoint ล่าสุดที่ผ่านแล้ว (กระโดดทีละขั้นตามระบบจุด)
-    const doneDeg = cpIndex > 0 ? CHECKPOINTS[cpIndex - 1] : 0;
-    sweepFill.style.height = `${Math.min(1, doneDeg / GAUGE_MAX) * 100}%`;
-
-    // กรอบเป้าหมายของ checkpoint ปัจจุบัน
-    const b = cpBandOf(cpIndex);
-    const top = Math.max(0, b.lo / GAUGE_MAX) * 100;
-    const bot = Math.min(1, (b.hi === Infinity ? GAUGE_MAX : b.hi) / GAUGE_MAX) * 100;
-    sweepBand.style.top = `${top}%`;
-    sweepBand.style.height = `${Math.max(0, bot - top)}%`;
-    sweepBand.classList.toggle("dwell", dwellStart !== null);
-    sweepBandFill.style.height = `${Math.min(1, Math.max(0, dwellP)) * 100}%`;
+    if (cpIndex >= CHECKPOINTS.length) return;
+    const p = pillEls[cpIndex];
+    const prev = cpIndex > 0 ? CHECKPOINTS[cpIndex - 1] : 0;
+    const target = CHECKPOINTS[cpIndex];
+    const approach = Math.min(1, Math.max(0, (flexionNow - prev) / (target - prev)));
+    const holding = dwellStart !== null;
+    // ระหว่างค้าง เม็ดเต็มและเรืองแสง (เวลาที่เหลือดูจากวงแหวน/ฟังเสียง)
+    p.fill.style.width = `${(holding ? 1 : approach) * 100}%`;
+    p.el.classList.toggle("holding", holding);
+    p.el.classList.toggle("over", !holding && flexionNow > cpBandOf(cpIndex).hi);
   }
 
   function resetSweep() {
@@ -1425,13 +1475,8 @@
     lastHintKey = "";
     clearHold();
     lastMarkerDeg = 0;
-    sweepFill.style.height = "0%";
-    sweepBand.style.height = "0%";
-    sweepBandFill.style.height = "0%";
-    sweepBand.classList.remove("dwell");
-    sweepMarker.style.top = "0%";
-    sweepLabel.classList.remove("paused");
-    sweepLabel.innerHTML = `ค้างแล้ว <b>0/${CHECKPOINTS.length}</b><br/>จุดแรก ${CHECKPOINTS[0]}°`;
+    pillEls.forEach((p) => p.el.classList.remove("just-done"));
+    setCpHead(`ค้างแล้ว <b>0/${CHECKPOINTS.length}</b>`, `เป้าแรก <b>${CHECKPOINTS[0]}°</b>`);
     renderTicks();
   }
 
@@ -1538,6 +1583,7 @@
     }
     video.srcObject = null;
     angleBadge.classList.remove("no-face");
+    angleBadge.classList.add("off");
     setState(S.IDLE);
     setHint(logRows.length ? "ปิดกล้องแล้ว — ผลรอบนี้ยังกดบันทึกได้" : "ปิดกล้องแล้ว", logRows.length ? "done" : "");
   }
@@ -1682,9 +1728,15 @@
     if (!warnState && flexionSigned > CFG.ANGLE_LIMIT) warnState = true;
     else if (warnState && flexionSigned < CFG.ANGLE_LIMIT - CFG.ANGLE_HYSTERESIS) warnState = false;
     angleBadge.classList.remove("no-face");
+    // ผู้ใช้ทั่วไป: เห็นแค่มุมก้ม และเห็นหลังตั้ง baseline เท่านั้น (ก่อนนั้นตัวเลขไม่มีความหมาย)
+    // admin: เห็น pitch ดิบ + ระยะ ไว้ตรวจระบบเหมือนเดิม
+    const admin = !!account && account.mode === "test";
+    angleBadge.classList.toggle("off", baselinePitch === null && !admin);
     angleBadge.textContent = baselinePitch === null
       ? `pitch ${head.pitch.toFixed(1)}° | ${head.distCm.toFixed(0)} ซม.`
-      : `${flexionSigned.toFixed(1)}° | ${head.distCm.toFixed(0)} ซม.`;
+      : admin
+        ? `${flexionSigned.toFixed(1)}° | ${head.distCm.toFixed(0)} ซม.`
+        : `${flexionSigned.toFixed(1)}°`;
     angleBadge.classList.toggle("warn", warnState);
     angleBadge.classList.toggle("ok", !warnState);
 
@@ -1724,6 +1776,7 @@
      จากช่วงท้าย CALIB_WINDOW_MS พร้อมเช็ค SD ว่านิ่งพอจริง
      ===================================================================== */
   function beginCalibration() {
+    calibLastBeep = null;
     calibStartMs = performance.now();
     calibSamples = [];
     pitchFilter.reset();
@@ -1737,6 +1790,9 @@
     // เงื่อนไขหลุดกลางคัน -> เริ่มนับใหม่ ไม่ปล่อยให้ได้ baseline ที่ไม่น่าเชื่อถือ
     calibStartMs = performance.now();
     calibSamples = [];
+    // เริ่มนับใหม่ -> เตือนครั้งเดียว (เฟรมถัดๆ ไปที่ยังหลุดอยู่ไม่ต้องดังซ้ำ)
+    if (calibLastBeep !== -1) Sfx.warn();
+    calibLastBeep = -1;
     showCountdown(CFG.CALIB_COUNT_SEC, 0, { warn: true });
     if (reason === null) {
       setMeasureHint("calib:gate", "<b>หยุดนับ</b> — แก้ตามคำเตือนใต้ภาพ แล้วระบบจะนับใหม่เอง", "blocked");
@@ -1748,8 +1804,12 @@
   // MEASURE หยุดนับเพราะ gate/ไม่พบใบหน้า: ข้อความเดียวกันทุกสาเหตุ
   // (key เดียว -> สาเหตุสลับไปมาก็ไม่ทำให้คำแนะนำกะพริบ) สาเหตุจริงดูที่ป้ายใต้ภาพ
   function showPaused() {
-    sweepLabel.classList.add("paused");
-    sweepLabel.innerHTML = "<b>หยุด</b><br/>ชั่วคราว";
+    setCpHead(`ค้างแล้ว <b>${cpIndex}/${CHECKPOINTS.length}</b>`, `<span class="paused">หยุดนับชั่วคราว</span>`);
+    renderTicks();
+    // เตือนด้วยเสียงครั้งเดียวต่อการหยุดหนึ่งครั้ง และต้องหยุดนานพอ (กันเสียงรัวตอนสั่นอยู่ที่ขอบ)
+    const now = performance.now();
+    if (pauseSince === null) { pauseSince = now; pauseWarned = false; }
+    else if (!pauseWarned && now - pauseSince > 400) { Sfx.warn(); pauseWarned = true; }
     setMeasureHint("paused", "<b>หยุดนับชั่วคราว</b> — แก้ตามคำเตือนใต้ภาพ แล้วระบบจะนับต่อเอง", "blocked");
   }
 
@@ -1764,6 +1824,7 @@
 
     const remain = Math.max(0, Math.ceil((totalMs - elapsed) / 1000));
     showCountdown(remain || 1, elapsed / totalMs);
+    if (remain !== calibLastBeep && remain > 0) { Sfx.tick(1); calibLastBeep = remain; }
     setMeasureHint("calib", CALIB_HINT, "blocked");
 
     if (elapsed >= totalMs) {
@@ -1792,6 +1853,7 @@
       sessionStartMs = ts;
       hideCountdown();
       setState(S.MEASURE);
+      Sfx.go();
       updateLogLine(`baseline ${mean.toFixed(1)}° (SD ${sd.toFixed(2)}°)`);
     }
   }
@@ -1825,14 +1887,17 @@
       hideCountdown();
     } else {
       counted = true;
-      sweepLabel.classList.remove("paused");
+      pauseSince = null;
 
       const tol = dwellStart === null ? CFG.CP_ENTER_TOL : CFG.CP_HOLD_TOL;
       if (inCpBand(flexion, cpIndex, tol)) {
         // อยู่ในแถบของ checkpoint -> จับเวลาค้าง
-        if (dwellStart === null) dwellStart = ts;
+        if (dwellStart === null) { dwellStart = ts; holdTicks = 0; }
         pushHold(ts, flexion);
         const held = ts - dwellStart;
+        // ติ๊กทุก 0.5 วิระหว่างค้าง ผู้ใช้ไม่ต้องมองจอก็รู้ว่ากำลังนับอยู่
+        const tickNo = Math.floor(held / 500);
+        if (tickNo >= holdTicks && held < CFG.HOLD_MS) { Sfx.tick(1 + tickNo * 0.06); holdTicks = tickNo + 1; }
         const p = Math.min(1, held / CFG.HOLD_MS);
         dwellProgress = p;
         showCountdown(
@@ -1849,10 +1914,15 @@
             const actual = medianHold();
             cpResults.push({ deg: target, actual: +actual.toFixed(2), t: +tSec.toFixed(2) });
             confirmedMax = Math.max(confirmedMax, actual);
+            const doneEl = pillEls[cpIndex].el;
             cpIndex++;
             capturedNow = 1;
             clearHold();
             renderTicks();
+            doneEl.classList.remove("just-done");
+            void doneEl.offsetWidth;            // รีสตาร์ทแอนิเมชันเด้ง
+            doneEl.classList.add("just-done");
+            Sfx.checkpoint(cpIndex - 1);
             lastHintKey = "";
             if (cpIndex >= CHECKPOINTS.length) {
               sweepComplete = true;
@@ -1874,8 +1944,10 @@
       }
 
       if (!justFinished) {
-        const nx = cpIndex < CHECKPOINTS.length ? `จุดถัดไป ${cpRangeText(cpIndex)}` : "ครบแล้ว";
-        sweepLabel.innerHTML = `ค้างแล้ว <b>${cpIndex}/${CHECKPOINTS.length}</b><br/>${nx}`;
+        setCpHead(
+          `ค้างแล้ว <b>${cpIndex}/${CHECKPOINTS.length}</b>`,
+          cpIndex < CHECKPOINTS.length ? `เป้าถัดไป <b>${CHECKPOINTS[cpIndex]}°</b>` : "ครบแล้ว"
+        );
       }
     }
 
@@ -1927,9 +1999,11 @@
     requestAnimationFrame(() => btnDownload.scrollIntoView({ block: "nearest", behavior: "smooth" }));
     finishedAt = new Date();   // ไม่บันทึกเอง: ส่งเข้า Drive เฉพาะตอนผู้ใช้กดปุ่มบันทึก
     const n = cpResults.length, total = CHECKPOINTS.length;
-    sweepLabel.innerHTML = sweepComplete
-      ? `ครบทุกจุด ✓<br/><b>${n}/${total}</b>`
-      : `จบการวัด<br/><b>${n}/${total}</b> จุด`;
+    setCpHead(
+      sweepComplete ? `<b>ครบทุกจุด ✓</b>` : `จบการวัด`,
+      `ค้างผ่าน <b>${n}/${total}</b>`
+    );
+    if (sweepComplete) Sfx.complete(); else Sfx.done();
     const reached = n > 0 ? CHECKPOINTS[n - 1] : 0;
     const detail = n > 0
       ? cpResults.map((r) => `${r.deg}° ที่ ${r.t}วิ`).join(" · ")
@@ -1946,6 +2020,7 @@
      ปุ่มหลัก — หน้าที่เปลี่ยนตาม state
      ===================================================================== */
   btnPrimary.addEventListener("click", () => {
+    Sfx.unlock();   // iOS/Safari เล่นเสียงได้หลังผู้ใช้แตะจอเท่านั้น
     switch (state) {
       case S.IDLE:
         startCamera();
@@ -2142,6 +2217,7 @@
 
   function enter(a) {
     account = a;
+    renderSoundBtn();
     if (a.mode !== "test") resetAdvanced();
     advancedPanel.hidden = a.mode !== "test";
     document.body.classList.toggle("is-admin", a.mode === "test");
@@ -2195,6 +2271,17 @@
       return;
     }
     enter({ mode: "test", nick: "test" });
+  });
+
+  function renderSoundBtn() {
+    btnSound.setAttribute("aria-pressed", Sfx.enabled ? "true" : "false");
+    btnSound.title = Sfx.enabled ? "ปิดเสียง" : "เปิดเสียง";
+  }
+  btnSound.addEventListener("click", () => {
+    Sfx.unlock();
+    Sfx.setEnabled(!Sfx.enabled);
+    renderSoundBtn();
+    Sfx.tick(1);   // ได้ยินทันทีว่าเปิดแล้ว (ถ้าปิดอยู่ก็เงียบ)
   });
 
   btnLogout.addEventListener("click", () => {

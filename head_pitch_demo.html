@@ -1348,6 +1348,13 @@
     if (head.distCm > CFG.DIST_ABS_MAX_CM) return { ok: false, code: "too_far", msg: "ไกลเกินไป เข้ามาใกล้อีกหน่อย" };
     if (head.distCm < CFG.DIST_ABS_MIN_CM) return { ok: false, code: "too_close", msg: "ใกล้เกินไป ถอยออกหน่อย" };
 
+    // หัน/เอียงหัวมาก -> pitch ไม่ใช่ flexion บริสุทธิ์อีกต่อไป
+    // เช็คก่อนวงรี: หันหน้าแล้วปลายจมูกเลื่อนออกข้างตามไปด้วย ถ้าเช็ควงรีก่อน
+    // ผู้ใช้ที่หันหน้าจะถูกบอกให้ "ขยับให้หน้าอยู่ในวงรี" แทน "หันหน้าเข้ากล้อง"
+    // (คลิปทดสอบ 22 ต.ค. ที่จัดหน้าพอดีวงรี: หันหน้าทั้งช่วงไม่เคยขึ้นคำเตือนหันหน้าเลย)
+    if (Math.abs(head.yaw) > CFG.YAW_LIMIT_DEG) return { ok: false, code: "yaw", msg: "หันหน้าเข้ากล้องตรงๆ" };
+    if (Math.abs(head.roll) > CFG.ROLL_LIMIT_DEG) return { ok: false, code: "roll", msg: "อย่าเอียงศีรษะ" };
+
     // ชั้นที่ 2: เทียบกับระยะตอนตั้ง baseline (ใช้ได้หลังตั้ง baseline แล้วเท่านั้น)
     if (baselineDistCm !== null) {
       const tol = Number(distTolInput.value) || CFG.DIST_REL_TOL_CM;
@@ -1372,10 +1379,6 @@
       if (Math.abs(nose.x - 0.5) > CFG.CENTER_X_TOL) return { ok: false, code: "off_center", msg: "ขยับให้หน้าอยู่กลางจอ (ซ้าย-ขวา)" };
       if (Math.abs(nose.y - 0.5) > CFG.CENTER_Y_TOL) return { ok: false, code: "off_center", msg: "ขยับให้หน้าอยู่กลางจอ (บน-ล่าง)" };
     }
-
-    // หัน/เอียงหัวมาก -> pitch ไม่ใช่ flexion บริสุทธิ์อีกต่อไป
-    if (Math.abs(head.yaw) > CFG.YAW_LIMIT_DEG) return { ok: false, code: "yaw", msg: "หันหน้าเข้ากล้องตรงๆ" };
-    if (Math.abs(head.roll) > CFG.ROLL_LIMIT_DEG) return { ok: false, code: "roll", msg: "อย่าเอียงศีรษะ" };
 
     // ลำตัวขยับ -> baseline ที่อ้างอิงไว้ใช้ไม่ได้แล้ว
     if (baselineTorso && torso) {

@@ -87,7 +87,7 @@
     /* กล้องมือถือเป็นแนวตั้ง เวทีจึงสูงกว่าจอ ดันปุ่มตกขอบล่าง
        จำกัดความสูงไว้ ภาพส่วนเกินถูก crop บน-ล่างด้วย object-fit:cover
        (canvas ใช้ขนาดและ object-fit เดียวกับ video จุดจมูกจึงยังตรงตำแหน่ง) */
-    max-height: 74vh; max-height: 74svh;
+    max-height: 82vh; max-height: 82svh;
     background: #04060A;
     border: 1px solid var(--border);
     border-radius: var(--r-lg);
@@ -303,31 +303,38 @@
   button.icon-btn[aria-pressed="false"] .snd-on { display: none; }
   button.icon-btn[aria-pressed="false"] .snd-off { display: inline; }
 
-  /* ---- step hint (คำสั่งทีละขั้น — เป็น element หลักที่ผู้ใช้ต้องอ่าน) ---- */
-  .step-hint {
-    display: flex; align-items: center; gap: 14px;
-    background: var(--surface);
-    border: 1px solid var(--border-soft);
-    border-radius: var(--r-md);
-    padding: 17px 21px; min-height: 62px;
-    font-size: 14.5px; font-weight: 300; line-height: 1.65;
-    transition: border-color 0.35s var(--ease), background 0.35s var(--ease);
+  /* ---- ข้อความบนภาพ (แทนกล่องคำสั่งใต้ภาพที่ตัวเล็กอ่านไม่ออกจากระยะแขน) ----
+     ขึ้นเฉพาะตอนที่ไม่มีอย่างอื่นบอกว่าต้องทำอะไร: ก่อนเปิดกล้อง, จัดท่า, นับถอยหลัง,
+     ก้มเกิน, จบรอบ, error — ระหว่างวัดปกติซ่อน (หมุด/วงแหวน/ป้ายเตือน/เสียงบอกแทน) */
+  .hud-msg {
+    align-self: center; max-width: 100%;
+    padding: 11px 18px; border-radius: 18px;
+    background: rgba(10,14,22,0.72);
+    -webkit-backdrop-filter: var(--glass-blur); backdrop-filter: var(--glass-blur);
+    border: 1px solid rgba(255,255,255,0.1);
+    font-size: 16px; font-weight: 400; line-height: 1.5; text-align: center; color: var(--text);
+    text-wrap: balance;
   }
-  /* จุดสถานะเป็น ::before -> เปลี่ยนสีตาม class ได้โดย JS ไม่ต้องรู้เรื่องเลย */
-  .step-hint::before {
-    content: ""; flex: none; width: 9px; height: 9px; border-radius: var(--pill);
-    background: var(--accent); box-shadow: 0 0 0 4px var(--accent-soft);
-    animation: pulse 2.4s var(--ease) infinite;
+  .hud-msg[hidden] { display: none; }
+  .hud-msg b { font-weight: 700; color: #fff; }
+  .hud-msg.blocked { background: rgba(190,40,70,0.55); border-color: rgba(251,113,133,0.6); }
+  .hud-msg.done { background: rgba(8,60,72,0.78); border-color: rgba(34,211,238,0.5); }
+  .hud-msg small { display: block; margin-top: 4px; font-size: 13px; color: var(--muted); }
+
+  /* ---- popup วิธีใช้ (ใช้โครงเดียวกับหน้า login) ---- */
+  .guide-card { max-width: 420px; gap: 12px; }
+  .guide-steps { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 11px; counter-reset: s; }
+  .guide-steps li {
+    counter-increment: s; display: flex; gap: 12px; align-items: flex-start;
+    font-size: 15px; line-height: 1.55; color: var(--text);
   }
-  .step-hint.blocked { border-color: rgba(251,113,133,0.22); background: rgba(251,113,133,0.05); }
-  .step-hint.blocked::before { background: var(--warn); box-shadow: 0 0 0 4px var(--warn-soft); }
-  .step-hint.done { border-color: rgba(34,211,238,0.26); background: rgba(34,211,238,0.05); }
-  .step-hint.done::before { animation: none; }
-  .step-hint b { font-weight: 600; color: #fff; }
-  @keyframes pulse {
-    0%, 100% { opacity: 1; transform: scale(1); }
-    50% { opacity: 0.4; transform: scale(0.8); }
+  .guide-steps li::before {
+    content: counter(s); flex: none; width: 28px; height: 28px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-family: var(--mono); font-size: 14px; font-weight: 700; color: #04131A;
+    background: linear-gradient(135deg, var(--accent), var(--accent-2));
   }
+  .guide-steps b { font-weight: 600; color: #fff; }
 
   /* ---- buttons: pill ล้วน ไม่มีมุมคม ------------------------------------- */
   .controls { display: flex; flex-wrap: wrap; gap: 11px; justify-content: center; }
@@ -531,14 +538,14 @@
     .wrap { padding: 10px 12px 32px; gap: 10px; }
     .brand { font-size: 15px; }
     .brand .ver { display: none; }
-    /* ความสูงเวที = จอ - (app bar + คำสั่ง 2 บรรทัด + ปุ่ม + ช่องไฟ ≈ 225px)
+    /* ความสูงเวที = จอ - (app bar + ปุ่ม + ช่องไฟ ≈ 150px) — ไม่มีกล่องคำสั่งใต้ภาพแล้ว
        ปุ่ม "ตั้ง Baseline" จึงอยู่ในจอเสมอโดยไม่ต้องเลื่อน
        ใช้ svh = ความสูงจอตอนแถบเครื่องมือ Safari / in-app browser แสดงอยู่
        max(260px, …) กันไม่ให้หดจนใช้ไม่ได้บนจอที่เตี้ยมาก */
     .stage {
       border-radius: var(--r-md);
-      max-height: max(300px, calc(100vh - 225px));
-      max-height: max(300px, calc(100svh - 225px));
+      max-height: max(320px, calc(100vh - 150px));
+      max-height: max(320px, calc(100svh - 150px));
     }
     button { flex: 1 1 42%; padding: 14px 16px; font-size: 14px; }
     /* ปุ่มเด่นบนจอแคบ: ใช้ขนาดเท่าปุ่มอื่น (แสง pulse พอให้เด่นแล้ว)
@@ -556,7 +563,8 @@
     /* เม็ดแคบบนมือถือ: สีไล่ของเม็ดที่ผ่านแล้วบอกสถานะพอ ไม่ต้องมี ✓ ให้ตัวเลขเบียด */
     .cp-pill.done::after { content: none; }
     .adv-grid { grid-template-columns: 1fr; }
-    .step-hint { font-size: 14px; padding: 12px 15px; min-height: 0; gap: 12px; }
+    .hud-msg { font-size: 15px; padding: 9px 14px; }
+    .guide-steps li { font-size: 14.5px; }
   }
 
   /* เคารพการตั้งค่าของผู้ใช้ที่ปิด animation (ป้องกันอาการเวียนหัว) */
@@ -602,12 +610,36 @@
   try { if (localStorage.getItem("nf_account")) document.getElementById("login").hidden = true; } catch (_) {}
 </script>
 
+<!-- popup วิธีใช้: ขึ้นเองตอน login ใหม่ด้วยชื่อเล่น (ไม่ขึ้นตอนวัดซ้ำ / รีเฟรช / โหมด admin)
+     เปิดดูซ้ำได้จากปุ่ม ? มุมบน -->
+<div class="login" id="guide" hidden>
+  <div class="login-card guide-card" role="dialog" aria-modal="true" aria-labelledby="guideTitle">
+    <h2 id="guideTitle">วิธีใช้</h2>
+    <ol class="guide-steps">
+      <li><span><b>ตั้งโทรศัพท์ให้นิ่ง</b> (ขาตั้ง หรือพิงของบนโต๊ะ) ให้กล้องหน้าอยู่ระดับใบหน้า ห่างประมาณ 1 ช่วงแขน — อย่าถือไว้ในมือระหว่างวัด</span></li>
+      <li><span>กด <b>“เปิดกล้อง”</b> แล้วจัดหน้าให้อยู่ในวงรี จนป้ายล่างขึ้น <b>“ระยะกำลังดี”</b></span></li>
+      <li><span>กด <b>“ตั้ง Baseline”</b> แล้ว<b>วางมือลง</b> นั่งคอตรงนิ่งๆ ระบบนับ 3-2-1</span></li>
+      <li><span>ค่อยๆ ก้มลงทีละจุด 5° → 25° ดูหมุดที่แถบใต้ภาพ แล้ว<b>ค้างไว้</b>แต่ละจุดจนวงแหวนเต็ม
+        — มีเสียงติ๊กระหว่างค้าง และเสียง “ติ๊ง” เมื่อผ่าน ไม่ต้องคอยมองจอ</span></li>
+      <li><span>จบแล้วกด <b>“บันทึกลง Drive”</b> (ไม่กด = ไม่บันทึก)</span></li>
+    </ol>
+    <p class="login-note">กล้องไม่ขึ้น? ถ้าเปิดลิงก์จาก LINE / Facebook ให้กด ⋯ แล้ว “เปิดในเบราว์เซอร์”
+      หรือเปิดสิทธิ์กล้องของเว็บนี้ในการตั้งค่าเบราว์เซอร์ แล้วรีเฟรช</p>
+    <button type="button" id="btnGuideOk">เข้าใจแล้ว</button>
+  </div>
+</div>
+
 <div class="wrap">
 
   <header class="appbar">
     <div class="brand">Neck Flexion <span class="ver">v2</span></div>
     <div class="session-bar" id="sessionBar" hidden>
       <span class="session-who" id="sessionWho"></span>
+      <button type="button" class="icon-btn" id="btnGuide" aria-label="วิธีใช้" title="วิธีใช้">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <circle cx="12" cy="12" r="9.5"/><path d="M9.3 9.2a2.8 2.8 0 0 1 5.4 1c0 1.9-2.7 2.4-2.7 4"/><path d="M12 17.4h.01"/>
+        </svg>
+      </button>
       <button type="button" class="icon-btn" id="btnSound" aria-pressed="true" aria-label="เปิด/ปิดเสียง" title="เปิด/ปิดเสียง">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
           <path d="M11 5 6 9H3v6h3l5 4z"/>
@@ -636,6 +668,7 @@
         <div class="angle-badge ok off" id="angleBadge"></div>
         <div class="timer-badge" id="timerBadge" hidden>0.0 วิ</div>
       </div>
+      <div class="hud-msg" id="stepHint">กด <b>“เปิดกล้อง”</b> เพื่อเริ่ม</div>
 
       <!-- วงแหวน: ใช้ทั้ง CALIB (3-2-1) และ HOLD (ค้างมุมไว้) -->
       <div class="hud-center">
@@ -665,8 +698,6 @@
       </div>
     </div>
   </div>
-
-  <div class="step-hint" id="stepHint"><span>กด <b>“เปิดกล้อง”</b> เพื่อเริ่ม</span></div>
 
   <!-- เหลือปุ่มที่มองเห็นพร้อมกันสูงสุด 2 ปุ่ม:
        ปุ่มหลัก 1 ปุ่มที่เปลี่ยนหน้าที่ตาม state + ปุ่มดาวน์โหลด -->
@@ -712,7 +743,7 @@
     </div>
   </details>
 
-  <details class="help">
+  <details class="help admin-only">
     <summary>วิธีใช้<span class="admin-only"> และข้อจำกัดที่ต้องรู้</span></summary>
     <div class="help-body">
       <p><b>ก่อนเริ่ม:</b> <b>ตั้งโทรศัพท์ไว้ให้นิ่ง</b> (ขาตั้ง หรือพิงของบนโต๊ะ) ให้กล้องหน้าอยู่ระดับใบหน้า
@@ -1168,12 +1199,11 @@
   /* =====================================================================
      UI helpers
      ===================================================================== */
+  // ข้อความบนภาพ — ส่ง "" เพื่อซ่อน
   function setHint(html, kind = "") {
-    stepHint.className = "step-hint" + (kind ? " " + kind : "");
-    // ห่อข้อความด้วย span เดียว: .step-hint เป็น flex (จุดสถานะ + ข้อความ)
-    // ถ้าไม่ห่อ ข้อความแต่ละท่อนกับ <b> จะกลายเป็น flex item แยกกัน
-    // บนจอแคบเลยแตกเป็นหลายคอลัมน์
-    stepHint.innerHTML = `<span>${html}</span>`;
+    stepHint.className = "hud-msg" + (kind ? " " + kind : "");
+    stepHint.hidden = !html;
+    stepHint.innerHTML = html;
   }
 
   function showCountdown(num, progress, opts = {}) {
@@ -1213,7 +1243,7 @@
         cpPanel.hidden = true;
         timerBadge.hidden = true;
         hideCountdown();
-        setHint("ตั้งโทรศัพท์ให้นิ่ง ขยับตัวจนป้ายล่างขึ้น <b>“ระยะกำลังดี”</b> แล้วนั่งคอตรง → กด <b>“ตั้ง Baseline”</b>");
+        setHint("จัดหน้าให้อยู่ในวงรีจนขึ้น <b>“ระยะกำลังดี”</b><br/>แล้วกด <b>“ตั้ง Baseline”</b>");
         break;
       case S.CALIB:
         btnPrimary.textContent = "ยกเลิก";
@@ -1228,7 +1258,7 @@
         btnPrimary.disabled = false;
         cpPanel.hidden = false;
         timerBadge.hidden = false;
-        setHint(`ก้มลงทีละขั้น แล้ว<b>ค้างไว้</b>ที่ทุกๆ ${CFG.CP_STEP}° จนวงแหวนเต็ม`);
+        lastHintKey = "";
         break;
       case S.DONE:
         btnPrimary.textContent = "วัดอีกครั้ง";
@@ -1837,9 +1867,9 @@
     calibLastBeep = -1;
     showCountdown(CFG.CALIB_COUNT_SEC, 0, { warn: true });
     if (reason === null) {
-      setMeasureHint("calib:gate", "<b>หยุดนับ</b> — แก้ตามคำเตือนใต้ภาพ แล้วระบบจะนับใหม่เอง", "blocked");
+      setMeasureHint("calib:gate", "");   // ป้ายคำเตือนด้านล่างบอกสาเหตุแล้ว
     } else {
-      setMeasureHint("calib:" + reason, `<b>${reason}</b> — ระบบนับใหม่ให้แล้ว`, "blocked");
+      setMeasureHint("calib:" + reason, `<b>${reason}</b><br/>ระบบนับใหม่ให้แล้ว`, "blocked");
     }
   }
 
@@ -1852,7 +1882,7 @@
     const now = performance.now();
     if (pauseSince === null) { pauseSince = now; pauseWarned = false; }
     else if (!pauseWarned && now - pauseSince > 400) { Sfx.warn(); pauseWarned = true; }
-    setMeasureHint("paused", "<b>หยุดนับชั่วคราว</b> — แก้ตามคำเตือนใต้ภาพ แล้วระบบจะนับต่อเอง", "blocked");
+    setMeasureHint("paused", "");   // ป้ายคำเตือนด้านล่าง + หัวแถบ checkpoint บอกแล้ว
   }
 
   function tickCalibration(ts, head, gate, pitchFilt) {
@@ -1904,7 +1934,7 @@
      MEASURE
      ===================================================================== */
   // อัปเดตคำสั่งบนจอเฉพาะตอนข้อความเปลี่ยนจริง ไม่ใช่ทุกเฟรม
-  const CALIB_HINT = "<b>วางมือลง</b> นั่งคอตรงนิ่งๆ มองตรงกล้อง จนกว่าจะนับครบ";
+  const CALIB_HINT = "<b>วางมือลง</b> นั่งคอตรง นิ่งๆ";
   function setMeasureHint(key, html, kind) {
     if (key === lastHintKey) return;
     lastHintKey = key;
@@ -1947,7 +1977,7 @@
           p,
           { hold: true, smallNum: true }
         );
-        setMeasureHint("hold:" + target, `ค้างไว้ที่ <b>${cpRangeText(cpIndex)}</b> จนวงแหวนเต็ม`);
+        setMeasureHint("hold:" + target, "");   // วงแหวน + เสียงติ๊กบอกแล้ว
 
         if (p >= 1) {
           // ยืนยันด้วย percentile เหมือนเดิม กัน noise ดันให้ผ่านทั้งที่ไม่ได้ค้างจริง
@@ -1977,11 +2007,14 @@
         clearHold();
         hideCountdown();
         const needDown = flexion < CHECKPOINTS[cpIndex];
+        // ก้มลงต่อ: หมุดบนแถบบอกอยู่แล้ว ขึ้นข้อความเฉพาะจุดแรกให้รู้ว่าเริ่มได้
+        // ก้มเกิน: ต้องบอก เพราะผู้ใช้มักไม่รู้ตัวว่าเลยเป้าไปแล้ว
         setMeasureHint(
-          "goto:" + target + (needDown ? "d" : "u"),
+          "goto:" + target + (needDown ? "d" : "u") + (cpIndex === 0 ? "0" : ""),
           needDown
-            ? `ก้มลงอีกให้ถึง <b>${target}°</b> แล้วค้างไว้`
-            : `ก้มลึกเกิน <b>${cpRangeText(cpIndex)}</b> — เงยขึ้นมานิดนึงแล้วค้างไว้`
+            ? (cpIndex === 0 ? `ค่อยๆ ก้มลงไปที่ <b>${target}°</b> แล้วค้างไว้` : "")
+            : `ก้มเลย <b>${target}°</b> — เงยขึ้นนิดนึง`,
+          needDown ? "" : "blocked"
         );
       }
 
@@ -2050,12 +2083,13 @@
     const detail = n > 0
       ? cpResults.map((r) => `${r.deg}° ที่ ${r.t}วิ`).join(" · ")
       : "ยังไม่ผ่านจุดไหนเลย";
+    const saveVerb = usesDrive() ? "บันทึกลง Drive" : "ดาวน์โหลด CSV";
     setHint(
-      `<b>จบการวัด (${reason})</b> — ค้างผ่าน <b>${n}/${total}</b> จุด ` +
-      `(ถึง <b>${reached}°</b>)<br/><span style="font-size:12.5px;color:var(--muted)">${detail}</span>`,
+      (sweepComplete ? `<b>ครบทุกจุด ✓</b>` : `<b>จบการวัด</b> — ค้างผ่าน ${n}/${total} จุด (ถึง ${reached}°)`) +
+      `<small>กด “${saveVerb}” เพื่อเก็บผล</small>`,
       "done"
     );
-    updateLogLine(reason);
+    updateLogLine(`${reason} · ${detail}`);
   }
 
   /* =====================================================================
@@ -2270,10 +2304,9 @@
     // สร้างด้วย textContent ไม่ใช่ innerHTML กันชื่อเล่นที่มี HTML
     const b = document.createElement("b");
     b.textContent = a.mode === "test" ? "โหมดทดสอบ" : a.nick;
-    sessionWho.replaceChildren(
-      a.mode === "test" ? "" : "ผู้ใช้: ", b,
-      a.mode === "test" ? " · บันทึกในเครื่องเท่านั้น" : ""
-    );
+    // ไม่มีคำนำหน้า "ผู้ใช้:" — app bar บนมือถือแคบ ให้ที่กับชื่อเล่นเต็มๆ
+    sessionWho.replaceChildren(b);
+    sessionWho.title = a.mode === "test" ? "โหมดทดสอบ · บันทึกในเครื่องเท่านั้น" : a.nick;
     refreshDownloadButton();
   }
 
@@ -2293,6 +2326,7 @@
     const nick = cleanNick(nickInput.value);
     if (!nick) { loginErr.textContent = "กรุณาใส่ชื่อเล่น"; nickInput.focus(); return; }
     enter({ mode: "user", nick });
+    showGuide();   // เฉพาะ login ใหม่ — รีเฟรช/วัดซ้ำ/admin ไม่ขึ้น
   });
 
   btnAdminToggle.addEventListener("click", () => {
@@ -2324,6 +2358,14 @@
     Sfx.setEnabled(!Sfx.enabled);
     renderSoundBtn();
     Sfx.tick(1);   // ได้ยินทันทีว่าเปิดแล้ว (ถ้าปิดอยู่ก็เงียบ)
+  });
+
+  const guideEl = document.getElementById("guide");
+  function showGuide() { guideEl.hidden = false; document.getElementById("btnGuideOk").focus(); }
+  document.getElementById("btnGuide").addEventListener("click", showGuide);
+  document.getElementById("btnGuideOk").addEventListener("click", () => {
+    Sfx.unlock();          // แตะปุ่มนี้ = user gesture เปิดระบบเสียงไว้ก่อนเลย
+    guideEl.hidden = true;
   });
 
   btnLogout.addEventListener("click", () => {

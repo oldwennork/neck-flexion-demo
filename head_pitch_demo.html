@@ -82,11 +82,15 @@
   }
 
   /* ---- stage ------------------------------------------------------------- */
+  /* --ar = สัดส่วนวิดีโอ (JS ตั้งให้ตอนเปิดกล้อง/เล่นคลิป)
+     จอกว้าง: หดความกว้างตามสัดส่วนแทนการ crop — คลิปแนวตั้งบนคอมเลยแสดงแบบเดียวกับ
+     บนมือถือ (เดิมกรอบเกือบจัตุรัส ภาพถูกขยาย+ตัดบนล่าง หน้าใหญ่เกินวงรีไปมาก)
+     จอมือถือ: เต็มความกว้างเหมือนเดิม (ดู media query) จำกัดความสูงให้ปุ่มอยู่ในจอ
+     ส่วนที่ล้นถูก crop บน-ล่างด้วย object-fit:cover — gate คำนวณ crop ไว้แล้ว */
   .stage {
-    position: relative; width: 100%; aspect-ratio: 4 / 3;
-    /* กล้องมือถือเป็นแนวตั้ง เวทีจึงสูงกว่าจอ ดันปุ่มตกขอบล่าง
-       จำกัดความสูงไว้ ภาพส่วนเกินถูก crop บน-ล่างด้วย object-fit:cover
-       (canvas ใช้ขนาดและ object-fit เดียวกับ video จุดจมูกจึงยังตรงตำแหน่ง) */
+    --ar: 1.3333;
+    position: relative; margin: 0 auto; aspect-ratio: var(--ar);
+    width: min(100%, calc(82vh * var(--ar))); width: min(100%, calc(82svh * var(--ar)));
     max-height: 82vh; max-height: 82svh;
     background: #04060A;
     border: 1px solid var(--border);
@@ -544,6 +548,7 @@
        max(260px, …) กันไม่ให้หดจนใช้ไม่ได้บนจอที่เตี้ยมาก */
     .stage {
       border-radius: var(--r-md);
+      width: 100%;
       max-height: max(320px, calc(100vh - 150px));
       max-height: max(320px, calc(100svh - 150px));
     }
@@ -1644,7 +1649,7 @@
       // -> overlay ตรงกับภาพเป๊ะ และไม่มีส่วนที่โดน crop หายไป
       overlay.width = video.videoWidth;
       overlay.height = video.videoHeight;
-      stage.style.aspectRatio = `${video.videoWidth} / ${video.videoHeight}`;
+      stage.style.setProperty("--ar", video.videoWidth / video.videoHeight);
 
       running = true;
       loopId++;

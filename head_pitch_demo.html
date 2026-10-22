@@ -228,9 +228,14 @@
   }
   .cp-head b { color: var(--text); font-weight: 600; }
   .cp-head .paused { color: var(--warn); font-weight: 600; }
-  .cp-pills { display: grid; grid-template-columns: repeat(var(--n, 5), 1fr); gap: 7px; }
+  /* สเกลมุม 0-GAUGE_MAX: เม็ดวางตรงตำแหน่งองศาของตัวเอง หมุดบนรางเลื่อนตามมุมจริง
+     -> เห็นทันทีว่าตอนนี้ก้มอยู่ตรงไหนเทียบกับแต่ละจุด ไม่ต้องเดา */
+  .cp-gauge { position: relative; margin: 0 16px; padding-bottom: 30px; }
+  .cp-pills { position: relative; height: 46px; }
   .cp-pill {
-    position: relative; overflow: hidden; isolation: isolate;
+    position: absolute; top: 0; transform: translateX(-50%);
+    width: calc(100% / var(--slots, 6) - 6px);
+    overflow: hidden; isolation: isolate;
     height: 46px; border-radius: 14px;
     display: flex; align-items: center; justify-content: center;
     font-family: var(--mono); font-size: 17px; font-weight: 700;
@@ -239,7 +244,7 @@
     transition: color 0.25s var(--ease), background 0.25s var(--ease),
                 border-color 0.25s var(--ease), box-shadow 0.25s var(--ease);
   }
-  /* แถบเติมในเม็ดปัจจุบัน = ก้มเข้าใกล้เป้าแค่ไหน (นับจากจุดที่ผ่านล่าสุด) */
+  /* แถบเติมในเม็ดปัจจุบัน = เวลาที่ค้างไว้แล้ว (เต็มเม็ด = ผ่าน) */
   .cp-pill > i {
     position: absolute; inset: 0 auto 0 0; z-index: -1; width: 0;
     background: rgba(34,211,238,0.22);
@@ -257,7 +262,29 @@
     color: #04131A; border-color: transparent;
     background: linear-gradient(135deg, var(--accent), var(--accent-2));
   }
-  .cp-pill.done::after { content: "✓"; margin-left: 4px; font-size: 14px; }
+  .cp-pill.done::after { content: "✓"; margin-left: 3px; font-size: 13px; }
+  .cp-track {
+    position: relative; height: 8px; margin-top: 12px;
+    border-radius: var(--pill); background: rgba(255,255,255,0.1);
+  }
+  .cp-track > i {
+    position: absolute; inset: 0 auto 0 0; width: 0; border-radius: var(--pill);
+    background: linear-gradient(90deg, var(--accent), var(--accent-2));
+    transition: width 0.08s linear;
+  }
+  /* หมุด + ตัวเลขมุมปัจจุบัน */
+  .cp-marker {
+    position: absolute; top: 50%; left: 0; z-index: 2;
+    width: 18px; height: 18px; margin: -9px 0 0 -9px; border-radius: 50%;
+    background: #fff; box-shadow: 0 0 0 3px rgba(34,211,238,0.45), 0 0 14px rgba(255,255,255,0.7);
+    transition: left 0.08s linear;
+  }
+  .cp-marker > span {
+    position: absolute; top: 100%; left: 50%; transform: translate(-50%, 7px);
+    padding: 2px 8px; border-radius: var(--pill);
+    background: #fff; color: #04070C; white-space: nowrap;
+    font-family: var(--mono); font-size: 13px; font-weight: 700; font-variant-numeric: tabular-nums;
+  }
   .cp-pill.just-done { animation: pillPop 0.45s var(--ease); }
   @keyframes pillPop { 0% { transform: scale(1); } 40% { transform: scale(1.12); } 100% { transform: scale(1); } }
   @keyframes holdGlow { 50% { box-shadow: 0 0 0 5px rgba(34,211,238,0.12), 0 0 26px -2px rgba(34,211,238,0.9); } }
@@ -523,9 +550,11 @@
     .angle-badge { font-size: 24px; padding: 6px 15px; }
     .timer-badge { font-size: 11px; padding: 6px 11px; }
     .cp-panel { padding: 8px 8px 9px; }
-    .cp-pills { gap: 5px; }
-    .cp-pill { height: 44px; font-size: 15px; border-radius: 12px; }
-    .cp-pill.done::after { margin-left: 2px; font-size: 12px; }
+    .cp-gauge { margin: 0 12px; }
+    .cp-pills, .cp-pill { height: 42px; }
+    .cp-pill { font-size: 15px; border-radius: 12px; width: calc(100% / var(--slots, 6) - 4px); }
+    /* เม็ดแคบบนมือถือ: สีไล่ของเม็ดที่ผ่านแล้วบอกสถานะพอ ไม่ต้องมี ✓ ให้ตัวเลขเบียด */
+    .cp-pill.done::after { content: none; }
     .adv-grid { grid-template-columns: 1fr; }
     .step-hint { font-size: 14px; padding: 12px 15px; min-height: 0; gap: 12px; }
   }
@@ -625,8 +654,13 @@
         <div class="distance-badge neutral" id="distanceBadge">รอตรวจจับใบหน้า</div>
         <div class="cp-panel" id="cpPanel" hidden>
           <div class="cp-head"><span id="cpStatus"></span><span id="cpNext"></span></div>
-          <!-- เม็ด checkpoint สร้างจาก JS ตาม CHECKPOINTS -->
-          <div class="cp-pills" id="cpPills"></div>
+          <div class="cp-gauge">
+            <!-- เม็ด checkpoint สร้างจาก JS ตาม CHECKPOINTS -->
+            <div class="cp-pills" id="cpPills"></div>
+            <div class="cp-track"><i id="cpTrackFill"></i>
+              <div class="cp-marker" id="cpMarker"><span id="cpMarkerVal">0°</span></div>
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -910,6 +944,9 @@
   const cpPills = document.getElementById("cpPills");
   const cpStatus = document.getElementById("cpStatus");
   const cpNext = document.getElementById("cpNext");
+  const cpTrackFill = document.getElementById("cpTrackFill");
+  const cpMarker = document.getElementById("cpMarker");
+  const cpMarkerVal = document.getElementById("cpMarkerVal");
   const btnSound = document.getElementById("btnSound");
 
 
@@ -939,10 +976,12 @@
   // เม็ด checkpoint หนึ่งเม็ดต่อหนึ่งจุด
   const pillEls = [];
   (function buildPills() {
-    cpPills.style.setProperty("--n", CHECKPOINTS.length);
+    // ช่องว่างบนสเกลมี GAUGE_MAX / CP_STEP ช่อง เม็ดกว้างเท่าหนึ่งช่องลบระยะห่าง
+    cpPills.style.setProperty("--slots", GAUGE_MAX / CFG.CP_STEP);
     CHECKPOINTS.forEach((deg) => {
       const el = document.createElement("div");
       el.className = "cp-pill";
+      el.style.left = `${(deg / GAUGE_MAX) * 100}%`;
       const fill = document.createElement("i");
       const label = document.createElement("span");
       label.textContent = `${deg}°`;
@@ -1455,14 +1494,16 @@
      ===================================================================== */
   function renderSweep(flexionNow, dwellP = 0) {
     lastMarkerDeg = flexionNow;
+    // หมุดบนราง = มุมปัจจุบัน (ตัวเลขจริง แต่ตำแหน่งตันที่ปลายสเกล)
+    const x = `${Math.min(1, Math.max(0, flexionNow / GAUGE_MAX)) * 100}%`;
+    cpMarker.style.left = x;
+    cpTrackFill.style.width = x;
+    cpMarkerVal.textContent = `${flexionNow.toFixed(1)}°`;
     if (cpIndex >= CHECKPOINTS.length) return;
     const p = pillEls[cpIndex];
-    const prev = cpIndex > 0 ? CHECKPOINTS[cpIndex - 1] : 0;
-    const target = CHECKPOINTS[cpIndex];
-    const approach = Math.min(1, Math.max(0, (flexionNow - prev) / (target - prev)));
     const holding = dwellStart !== null;
-    // ระหว่างค้าง เม็ดเต็มและเรืองแสง (เวลาที่เหลือดูจากวงแหวน/ฟังเสียง)
-    p.fill.style.width = `${(holding ? 1 : approach) * 100}%`;
+    // ระหว่างค้าง เม็ดเติมตามเวลาที่ค้าง + เรืองแสง (เวลาที่เหลือดูวงแหวน/ฟังเสียง)
+    p.fill.style.width = `${(holding ? Math.min(1, dwellP) : 0) * 100}%`;
     p.el.classList.toggle("holding", holding);
     p.el.classList.toggle("over", !holding && flexionNow > cpBandOf(cpIndex).hi);
   }
@@ -1476,6 +1517,7 @@
     clearHold();
     lastMarkerDeg = 0;
     pillEls.forEach((p) => p.el.classList.remove("just-done"));
+    renderSweep(0, 0);
     setCpHead(`ค้างแล้ว <b>0/${CHECKPOINTS.length}</b>`, `เป้าแรก <b>${CHECKPOINTS[0]}°</b>`);
     renderTicks();
   }

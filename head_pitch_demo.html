@@ -322,6 +322,9 @@
   .hud-msg.blocked { background: rgba(190,40,70,0.55); border-color: rgba(251,113,133,0.6); }
   .hud-msg.done { background: rgba(8,60,72,0.78); border-color: rgba(34,211,238,0.5); }
   .hud-msg small { display: block; margin-top: 4px; font-size: 13px; color: var(--muted); }
+  /* คำสั่งของสคริปต์อัดวิดีโอทดสอบ (admin) — สีเหลืองแยกจากคำสั่งปกติ */
+  .hud-msg.script { background: rgba(120,80,0,0.78); border-color: rgba(251,191,36,0.7); font-size: 18px; }
+  .hud-msg.script small { color: #FDE68A; }
 
   /* ---- popup วิธีใช้ (ใช้โครงเดียวกับหน้า login) ---- */
   .guide-card { max-width: 420px; gap: 12px; }
@@ -671,6 +674,7 @@
         <div class="timer-badge" id="timerBadge" hidden>0.0 วิ</div>
         <div class="timer-badge rec-badge" id="recBadge" hidden>REC</div>
       </div>
+      <div class="hud-msg script" id="scriptCue" hidden></div>
       <div class="hud-msg" id="stepHint">กด <b>“เปิดกล้อง”</b> เพื่อเริ่ม</div>
 
       <!-- วงแหวน: ใช้ทั้ง CALIB (3-2-1) และ HOLD (ค้างมุมไว้) -->
@@ -741,14 +745,19 @@
       <label>อัดวิดีโอทดสอบระหว่างวัด
         <select id="recMode">
           <option value="0">ปิด</option>
-          <option value="1">เปิด (ดาวน์โหลดเมื่อจบรอบ)</option>
+          <option value="2">อัดตามสคริปต์ทดสอบ (แนะนำ)</option>
+          <option value="1">อัดอิสระ</option>
         </select>
       </label>
       <label>เล่นจากวิดีโอแทนกล้อง
         <input type="file" id="videoFile" accept="video/*" />
       </label>
       <div class="adv-note">
-        <b>วิดีโอทดสอบ:</b> เปิด “อัดวิดีโอ” แล้ววัดตามปกติ — อัดตั้งแต่กล้องพร้อมจนจบรอบ แล้วดาวน์โหลดเป็น
+        <b>อัดตามสคริปต์:</b> ระบบบอกทีละขั้น (ข้อความสีเหลือง + เสียงพูด) ให้ทำครบทุกกรณี — ตั้ง Baseline เอง,
+        checkpoint 5° 10°, หันหน้า, เอียงหัว, เอนเข้า, เอนออก, เลื่อนตัวออกนอกวงรี, ปิดหน้า, ก้มเกิน, แล้ว 15° 20° 25°
+        แต่ละขั้นรอจนเดโมตรวจเจอจริงค่อยไปต่อ (ไม่เจอใน 10 วิ = ข้าม) จบแล้วสรุปผลบนจอและใน CSV ไม่ต้องแตะจอระหว่างอัด
+        — เล่นคลิปที่มี <code>_script</code> ในชื่อซ้ำ ระบบเดินสคริปต์ตามเงียบๆ แล้วสรุปผลเหมือนกัน ใช้เช็คว่าแก้โค้ดแล้วยังผ่านเหมือนเดิม<br/>
+        <b>วิดีโอทดสอบ:</b> อัดตั้งแต่กล้องพร้อมจนจบรอบ แล้วดาวน์โหลดเป็น
         <code>fixture_วันที่_calib-12.3s.mp4</code> (ตัวเลขคือวินาทีที่กดตั้ง Baseline)
         เลือกไฟล์นี้ใน “เล่นจากวิดีโอ” แล้วกด “เล่นวิดีโอ” ระบบประมวลผลเหมือนกล้องจริงและกดตั้ง Baseline ให้เองที่วินาทีเดิม
         วิดีโอมีใบหน้า — เก็บไว้ในเครื่อง อย่าอัปขึ้น repo
@@ -1005,6 +1014,7 @@
   const btnStopCam = document.getElementById("btnStopCam");
   const recBadge = document.getElementById("recBadge");
   const recModeSelect = document.getElementById("recMode");
+  const scriptCue = document.getElementById("scriptCue");
   const videoFileInput = document.getElementById("videoFile");
   const logLine = document.getElementById("logLine");
 
@@ -1520,6 +1530,7 @@
       `# baseline_dist_cm,${baselineDistCm === null ? "" : baselineDistCm.toFixed(1)}`,
       `# dist_tol_cm,${distTolInput.value}`,
       `# center_gate,nose inside on-screen guide ellipse`,
+      ...(Script.results.length ? [`# script,${Script.results.map((r) => `${r.id}=${r.ok ? "ok" : "missed"}`).join(" ")}`] : []),
       `# alt_pitch,experimental: flex_axis = forehead(10)->chin(152) / flex_lower = nose(1)->chin(152) / not used for checkpoints`,
       `# video_resolution,${video.videoWidth}x${video.videoHeight}`,
       `# pose_enabled,${poseReady}`,
@@ -1665,6 +1676,7 @@
       loopId++;
       setState(S.READY);
       startRecording();
+      if (fileSource && /_script/.test(fileSource.name)) Script.start(true);
       scheduleFrame();
     } catch (err) {
       console.error(err);
@@ -1680,6 +1692,7 @@
 
   // ของเดิมไม่เคย .stop() track เลย ไฟกล้องจึงติดค้างจนกว่าจะปิดแท็บ
   function stopCamera() {
+    Script.finish();
     stopRecording();
     running = false;
     if (mediaStream) {
@@ -1787,8 +1800,9 @@
         // session จะค้างอยู่ตลอดเพราะ tickMeasure() ไม่เคยถูกเรียก
         const tSec = (ts - sessionStartMs) / 1000;
         timerBadge.textContent = `${tSec.toFixed(1)} วิ`;
-        if (tSec > CFG.SESSION_TIMEOUT_SEC) finishSession("ครบเวลาที่กำหนด");
+        if (tSec > CFG.SESSION_TIMEOUT_SEC * Script.timeoutFactor) finishSession("ครบเวลาที่กำหนด");
       }
+      Script.update("no_face", null);
       return;
     }
 
@@ -1859,6 +1873,7 @@
     } else if (state === S.MEASURE) {
       tickMeasure(ts, head, nose, gate, flexion, pitchFilt);
     }
+    Script.update(gate.ok ? "ok" : gate.code, flexion);
   }
 
   function emptyRow(ts, reason) {
@@ -2104,11 +2119,12 @@
     updateLogLine();
 
     if (justFinished) { finishSession("ค้างครบทุกจุดแล้ว"); return; }
-    // timeout กันลืมกดจบ
-    if (tSec > CFG.SESSION_TIMEOUT_SEC) finishSession("ครบเวลาที่กำหนด");
+    // timeout กันลืมกดจบ (สคริปต์ทดสอบมีหลายขั้น ให้เวลานานกว่า)
+    if (tSec > CFG.SESSION_TIMEOUT_SEC * Script.timeoutFactor) finishSession("ครบเวลาที่กำหนด");
   }
 
   function finishSession(reason) {
+    const scriptSummary = Script.finish();
     stopRecording();
     hideCountdown();
     setState(S.DONE);
@@ -2133,6 +2149,7 @@
       "done"
     );
     updateLogLine(`${reason} · ${detail}`);
+    if (scriptSummary) setHint(`<b>สรุปสคริปต์ทดสอบ</b><small>${scriptSummary}</small>`, "done");
   }
 
   /* =====================================================================
@@ -2140,6 +2157,10 @@
      ===================================================================== */
   btnPrimary.addEventListener("click", () => {
     Sfx.unlock();   // iOS/Safari เล่นเสียงได้หลังผู้ใช้แตะจอเท่านั้น
+    // เสียงพูดของสคริปต์ก็เช่นกัน: พูดครั้งแรกจากการแตะนี้ (คำว่างๆ) เพื่อปลดล็อก
+    if (recModeSelect.value === "2" && window.speechSynthesis) {
+      try { speechSynthesis.speak(new SpeechSynthesisUtterance(" ")); } catch (_) {}
+    }
     switch (state) {
       case S.IDLE:
         startCamera();
@@ -2169,6 +2190,7 @@
         }
         setState(S.READY);
         startRecording();
+        if (fileSource && /_script/.test(fileSource.name)) Script.start(true);
         break;
     }
   });
@@ -2193,7 +2215,7 @@
   }
 
   function startRecording() {
-    if (recorder || !mediaStream || recModeSelect.value !== "1" || !window.MediaRecorder) return;
+    if (recorder || !mediaStream || recModeSelect.value === "0" || !window.MediaRecorder) return;
     const mimeType = pickRecMime();
     const chunks = [];
     const rec = new MediaRecorder(mediaStream, mimeType ? { mimeType, videoBitsPerSecond: 4000000 } : undefined);
@@ -2202,7 +2224,7 @@
       const type = rec.mimeType || mimeType || "video/webm";
       const ext = type.includes("mp4") ? "mp4" : "webm";
       // ใช้ค่าที่จับไว้ตอนสั่งหยุด — onstop มาทีหลัง อาจเริ่มอัดรอบใหม่ไปแล้ว
-      const calib = rec.calibAt == null ? "" : `_calib-${rec.calibAt.toFixed(1)}s`;
+      const calib = (rec.scripted ? "_script" : "") + (rec.calibAt == null ? "" : `_calib-${rec.calibAt.toFixed(1)}s`);
       const url = URL.createObjectURL(new Blob(chunks, { type }));
       const a = document.createElement("a");
       a.href = url;
@@ -2212,11 +2234,13 @@
       document.body.removeChild(a);
       setTimeout(() => URL.revokeObjectURL(url), 10000);
     };
+    rec.scripted = recModeSelect.value === "2";   // ใส่ _script ในชื่อไฟล์
     rec.start(1000);
     recorder = rec;
     recStartMs = performance.now();
     recCalibAt = null;
     recBadge.hidden = false;
+    if (recModeSelect.value === "2") Script.start(false);
   }
 
   function stopRecording() {
@@ -2259,11 +2283,135 @@
     running = false;
     if (state === S.MEASURE) finishSession("วิดีโอจบ");
     else if (state === S.READY || state === S.CALIB) {
+      Script.finish();
       hideCountdown();
       setState(S.READY);
       setHint("วิดีโอจบก่อนเริ่มวัด — ตรวจว่าชื่อไฟล์มี calib-…s หรือกดตั้ง Baseline เองระหว่างเล่น", "blocked");
     }
   });
+
+  /* =====================================================================
+     สคริปต์อัดวิดีโอทดสอบ (admin) — พาทำทุกกรณีตามลำดับ ไม่ต้องสุ่มเอง
+     ---------------------------------------------------------------------
+     เดินตามเหตุการณ์จริงของเดโม ไม่ใช่ตามเวลา: แต่ละขั้นรอจนตรวจเจอ
+     (gate code / มุมเกิน / checkpoint) ค่อยไปต่อ ขั้นทดสอบ error ให้เวลา 10 วิ
+     ไม่เจอ = บันทึกว่า missed แล้วข้าม จากนั้นสั่ง "กลับท่าเดิม" จนปกติ 1 วิ
+     ขั้นแรกตั้ง Baseline ให้เองเมื่อท่าปกติครบ 2 วิ -> คนในคลิปไม่ต้องแตะจอเลย
+     ===================================================================== */
+  const SCRIPT_STEPS = [
+    { id: "baseline", kind: "until", cue: "นั่งคอตรง หน้าอยู่ในวงรี", sub: "ไม่ต้องแตะจอ — ระบบตั้ง Baseline ให้เอง",
+      say: "นั่งคอตรง ไม่ต้องแตะจอ", done: () => state === S.MEASURE },
+    { id: "cp_5_10", kind: "until", cue: "ก้มไปที่ 5° ค้างจนผ่าน แล้วต่อที่ 10°", sub: "ผ่าน 10° แล้วเงยกลับมานั่งคอตรง",
+      say: "ก้มไปที่ห้าองศา แล้วสิบองศา ค้างจนผ่าน", done: () => cpIndex >= 2 },
+    { id: "yaw", kind: "error", cue: "หันหน้าไปทางซ้ายช้าๆ", say: "หันหน้าไปทางซ้าย", expect: ["yaw"] },
+    { id: "roll", kind: "error", cue: "เอียงศีรษะไปทางไหล่", say: "เอียงศีรษะไปทางไหล่", expect: ["roll"] },
+    { id: "lean_in", kind: "error", cue: "เอนตัวเข้าหากล้อง", say: "เอนตัวเข้าหากล้อง", expect: ["moved_near", "torso_lean", "too_close"] },
+    { id: "lean_back", kind: "error", cue: "เอนตัวถอยหลัง", say: "เอนตัวถอยหลัง", expect: ["moved_far", "torso_lean", "too_far"] },
+    { id: "shift", kind: "error", cue: "เลื่อนตัวไปด้านข้าง จนหน้าออกนอกวงรี", say: "เลื่อนตัวไปด้านข้าง", expect: ["off_center", "torso_move"] },
+    { id: "no_face", kind: "error", cue: "เอามือปิดหน้า", say: "เอามือปิดหน้า", expect: ["no_face"] },
+    { id: "overshoot", kind: "over", cue: "ก้มเลย 15° ไปเกือบ 20° แล้วค้างไว้", say: "ก้มเลยสิบห้าองศา ไปเกือบยี่สิบ" },
+    { id: "cp_rest", kind: "until", cue: "เงยมาที่ 15° แล้วก้มต่อให้ครบ 15° 20° 25°", sub: "ค้างแต่ละจุดจนผ่าน",
+      say: "ก้มต่อให้ครบ สิบห้า ยี่สิบ ยี่สิบห้า องศา", done: () => cpIndex >= CHECKPOINTS.length },
+  ];
+  const SCRIPT_LABEL = { yaw: "หันหน้า", roll: "เอียงหัว", lean_in: "เอนเข้า", lean_back: "เอนออก",
+    shift: "ออกนอกวงรี", no_face: "ปิดหน้า", overshoot: "ก้มเกิน" };
+  const ERROR_TIMEOUT_MS = 10000;
+
+  const Script = (() => {
+    let on = false, replay = false, idx = 0, phase = "do", since = 0, okSince = null, hitSince = null;
+    let results = [];
+
+    function speak(text) {
+      try {
+        if (replay || !window.speechSynthesis) return;   // เล่นซ้ำ: เงียบ
+        speechSynthesis.cancel();
+        const u = new SpeechSynthesisUtterance(text);
+        u.lang = "th-TH";
+        u.rate = 1.05;
+        speechSynthesis.speak(u);
+      } catch (_) {}
+    }
+    function show(cue, sub) {
+      scriptCue.hidden = false;
+      scriptCue.innerHTML = `${cue}${sub ? `<small>${sub}</small>` : ""}`;
+    }
+    function enterStep(i) {
+      idx = i; phase = "do"; since = performance.now(); okSince = null; hitSince = null;
+      const st = SCRIPT_STEPS[i];
+      if (!st) { scriptCue.hidden = true; return; }
+      show(`${i + 1}/${SCRIPT_STEPS.length} · ${st.cue}`, st.sub || (st.kind === "error" ? "ค้างท่าไว้จนมีเสียงยืนยัน" : ""));
+      speak(st.say);
+      Sfx.tick(1.2);
+    }
+    function record(id, ok) {
+      results.push({ id, ok });
+      if (ok) Sfx.go(); else Sfx.warn();
+    }
+    function toReturn() {
+      phase = "return"; okSince = null;
+      show("กลับท่าเดิม นั่งคอตรง", "รอจนป้ายล่างขึ้น “ระยะกำลังดี”");
+      speak("กลับท่าเดิม");
+    }
+
+    return {
+      get active() { return on; },
+      get results() { return results; },
+      get timeoutFactor() { return on ? 3 : 1; },
+      clear() { results = []; },
+      // asReplay: เล่นคลิปที่อัดตามสคริปต์ซ้ำ — เดินสคริปต์ตามเงียบๆ แล้วสรุปผลเทียบกับตอนอัด
+      // (ไม่พูด และไม่ตั้ง Baseline เอง ใช้วินาทีจากชื่อไฟล์แทน จังหวะจะได้ตรงกับคลิป)
+      start(asReplay = false) {
+        on = true; replay = asReplay; results = [];
+        speak("เริ่มอัดวิดีโอทดสอบ");
+        enterStep(0);
+      },
+      // code: "ok" | gate code | "no_face", flex: มุมก้มเฟรมนี้ (null = ไม่มีหน้า)
+      update(code, flex) {
+        if (!on) return;
+        const st = SCRIPT_STEPS[idx];
+        if (!st) return;
+        const now = performance.now();
+
+        if (st.kind === "until") {
+          // ขั้นแรก: ท่าปกติครบ 2 วิ -> ตั้ง Baseline ให้เอง
+          if (st.id === "baseline" && state === S.READY && !replay) {
+            if (code === "ok") { okSince ??= now; if (now - okSince > 2000) { okSince = null; beginCalibration(); } }
+            else okSince = null;
+          }
+          if (st.done()) enterStep(idx + 1);
+          return;
+        }
+
+        if (phase === "do") {
+          const hit = st.kind === "error"
+            ? st.expect.includes(code)
+            : code === "ok" && flex !== null && cpIndex < CHECKPOINTS.length && flex > cpBandOf(cpIndex).hi;
+          if (hit) { hitSince ??= now; } else hitSince = null;
+          if (hitSince !== null && now - hitSince > (st.kind === "over" ? 800 : 500)) { record(st.id, true); toReturn(); }
+          else if (now - since > ERROR_TIMEOUT_MS) { record(st.id, false); toReturn(); }
+        } else {
+          // กลับท่าเดิม: ปกติต่อเนื่อง 1 วิ (ขั้นก้มเกิน: แค่ไม่เกินแล้วก็พอ)
+          const back = st.kind === "over"
+            ? code === "ok" && flex !== null && flex <= cpBandOf(Math.min(cpIndex, CHECKPOINTS.length - 1)).hi
+            : code === "ok";
+          if (back) { okSince ??= now; if (now - okSince > 1000) enterStep(idx + 1); }
+          else okSince = null;
+        }
+      },
+      // จบรอบ: คืนข้อความสรุป (หรือ "" ถ้าไม่ได้รันสคริปต์)
+      finish() {
+        if (!on) return "";
+        on = false;
+        scriptCue.hidden = true;
+        try { window.speechSynthesis && speechSynthesis.cancel(); } catch (_) {}
+        const tested = SCRIPT_STEPS.filter((x) => x.kind !== "until").map((x) => x.id);
+        return tested.map((id) => {
+          const r = results.find((x) => x.id === id);
+          return `${r ? (r.ok ? "✓" : "✗") : "–"} ${SCRIPT_LABEL[id]}`;
+        }).join(" · ") + ` · checkpoint ${cpResults.length}/${CHECKPOINTS.length}`;
+      },
+    };
+  })();
 
   function confirmDiscard() {
     if (savedThisRun || logRows.length === 0) return true;
@@ -2284,6 +2432,7 @@
     savedToDrive = false;
     saveError = "";
     finishedAt = null;
+    Script.clear();
     resetSweep();
     updateLogLine();
   }

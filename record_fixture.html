@@ -495,6 +495,8 @@
         m.face && guideFit(m) >= T.FIT_MIN && guideFit(m) <= T.FIT_MAX],
       ["ระยะ 30–85 ซม.", m.face && m.dist >= 32 && m.dist <= 82],   // ช่วงที่ demo ยอม (ไม่ชิดขอบ)
       ["หันหน้าตรง", m.face && Math.abs(m.yaw) < 6 && Math.abs(m.roll) < 6],
+      // เกณฑ์เดียวกับ demo (CAMERA_LEVEL_TOL): กล้องต่ำ/สูงกว่าตาแล้วก้มลึกจะหาหน้าไม่เจอ
+      ["กล้องระดับตา", m.face && Math.abs(m.pitchF) < 12],
     ];
   }
   function renderChecks() {

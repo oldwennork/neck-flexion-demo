@@ -215,7 +215,7 @@
         </label>
         <label class="check"><input type="checkbox" id="voice" checked /> เสียงพูดบอกขั้นตอน</label>
         <div class="checks" id="ready"></div>
-        <p class="note">จัดตัวแบบผู้ใช้จริง: <b>จมูกอยู่กลางวงรี และหน้า (หน้าผากถึงคาง) สูงพอดีวงรี</b> แสงพอ
+        <p class="note">จัดตัวแบบผู้ใช้จริง: <b>กล้องตั้งตรงที่ระดับจมูก จมูกอยู่กลางวงรี และหน้า (หน้าผากถึงคาง) สูงพอดีวงรี</b> แสงพอ
           ระหว่างอัด<b>ไม่ต้องแตะคอมหรือเมาส์</b> ทำตามเสียงไปจนจบ (~2 นาที) — ขั้นไหนทำไม่ได้ใน 15 วิ ระบบข้ามให้</p>
         <div class="row">
           <button id="btnCam">เปิดกล้อง</button>
@@ -495,6 +495,8 @@
         m.face && guideFit(m) >= T.FIT_MIN && guideFit(m) <= T.FIT_MAX],
       ["ระยะ 30–85 ซม.", m.face && m.dist >= 32 && m.dist <= 82],   // ช่วงที่ demo ยอม (ไม่ชิดขอบ)
       ["หันหน้าตรง", m.face && Math.abs(m.yaw) < 6 && Math.abs(m.roll) < 6],
+      // เหมือน demo (PHONE_TILT_TOL): กล้องตั้งตรง + นั่งคอตรง
+      ["กล้องตั้งตรง", m.face && Math.abs(m.pitchF) < 12],
     ];
   }
   function renderChecks() {
